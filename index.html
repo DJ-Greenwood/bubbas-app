@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Accessible page title -->
+    <title>Bubbas.AI – Your Trusted AI Companion</title>
+
+    <!-- Favicon for brand visibility -->
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+
+    <!-- ARIA landmark guidance for assistive tech -->
+    <meta name="application-name" content="Bubbas.ai" />
+    <meta name="description" content="A privacy-first AI emotional support companion designed to help you reflect, grow, and feel heard." />
+
+    <!-- Optional: Set theme color for mobile browser UI -->
+    <meta name="theme-color" content="#6366f1" />
+  </head>
+
+  <body>
+    <!-- Skip Navigation for Keyboard Users -->
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-white text-blue-600 p-2 rounded shadow z-50">
+      Skip to main content
+    </a>
+
+    <div id="root"></div>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

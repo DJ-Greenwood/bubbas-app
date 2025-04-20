@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Each user can read/write/delete their own account
+    match /users/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+
+      // Profile subcollections like billing, preferences
+      match /{document=**} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Journals (1 per entry)
+    match /journals/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+
+      // Support /journals/{userId}/{entryId}
+      match /{entryId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Chats or mood logs (same structure)
+    match /chats/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+
+      match /{chatId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Billing metadata (not actual card info – handled by Stripe)
+    match /billing/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Admin config/settings
+    match /admin/{docId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}
