@@ -1,11 +1,26 @@
+'use client';
+import React from "react";
 import { useState, useEffect } from "react";
-import chatService from '../utils/aiservices';
+import chatService from '../../utils/aiservices';
+import { functions, db, auth } from '../../utils/firebaseClient';
+import { encryptEntry, decryptEntry } from '../../utils/encryption';
+import { httpsCallable } from "firebase/functions";
+import { collection, getDocs } from "firebase/firestore";
 
 // 🧠 Define emotion types and response format
 type Emotion =
-  | "joyful" | "peaceful" | "tired" | "nervous"
-  | "frustrated" | "grateful" | "hopeful" | "isolated"
-  | "confused" | "reflective" | "sad" | "angry";
+  | "joyful"
+  | "peaceful"
+  | "tired"
+  | "nervous"
+  | "frustrated"
+  | "grateful"
+  | "hopeful"
+  | "isolated"
+  | "confused"
+  | "reflective"
+  | "sad"
+  | "angry";
 
 interface JournalEntry {
   userText: string;
@@ -21,11 +36,33 @@ const EmotionChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
 
+  const saveEncryptedJournal = httpsCallable(functions, "saveEncryptedJournal");
+
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      chatService.startEmotionalSupportSession();
-    }
+    chatService.startEmotionalSupportSession();
+    loadJournalEntries();
   }, []);
+
+  const loadJournalEntries = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const ref = collection(db, "journals", user.uid, "entries");
+    const snapshot = await getDocs(ref);
+    const entries: JournalEntry[] = [];
+
+    snapshot.forEach(doc => {
+      try {
+        const decrypted = decryptEntry(doc.data().encryptedData);
+        entries.push(decrypted);
+      } catch (err) {
+        console.warn("Failed to decrypt journal entry", err);
+      }
+    });
+
+    entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    setJournalEntries(entries);
+  };
 
   const getEmotionIcon = (sentiment: Emotion): JSX.Element => {
     const emotionImageMap: Record<Emotion, string> = {
@@ -45,13 +82,7 @@ const EmotionChat = () => {
 
     const imageUrl = emotionImageMap[sentiment] || "/assets/images/emotions/default.jpg";
 
-    return (
-      <img
-        src={imageUrl}
-        alt={sentiment}
-        className="w-16 h-16 object-cover rounded"
-      />
-    );
+    return <img src={imageUrl} alt={sentiment} className="w-16 h-16 object-cover rounded" />;
   };
 
   const detectEmotion = async (message: string): Promise<Emotion> => {
@@ -65,9 +96,12 @@ const EmotionChat = () => {
       "sad", "angry"
     ];
 
-    return allowedEmotions.includes(cleaned as Emotion)
-      ? (cleaned as Emotion)
-      : "reflective";
+    if (allowedEmotions.includes(cleaned as Emotion)) {
+      return cleaned as Emotion;
+    }
+
+    console.warn("Unexpected emotion returned:", result);
+    return "reflective";
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -85,21 +119,22 @@ const EmotionChat = () => {
       const reply = await chatService.askQuestion(userInput);
       setResponse(reply);
 
-      // 📝 Add to journal
-      const timestamp = new Date().toLocaleString();
       const newEntry: JournalEntry = {
         userText: userInput,
         bubbaReply: reply,
         emotion: detectedEmotion,
-        timestamp,
+        timestamp: new Date().toISOString()
       };
-      setJournalEntries((prev) => [newEntry, ...prev]); // newest first
+
+      const encrypted = encryptEntry(newEntry);
+      await saveEncryptedJournal({ encryptedData: encrypted });
+      setJournalEntries(prev => [newEntry, ...prev]);
     } catch (error) {
       console.error("Error:", error);
       setResponse("Oops! Something went wrong. Bubbas is trying again.");
     } finally {
       setIsLoading(false);
-      setUserInput(""); // clear input after submission
+      setUserInput("");
     }
   };
 
@@ -107,10 +142,10 @@ const EmotionChat = () => {
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       <h2 className="flex items-center gap-2">
         <img
-          src="/assets/images/emotions/default.jpg"
+          src='/assets/images/emotions/default.jpg'
           alt="Bubba the AI"
           className="w-16 h-16 object-cover rounded"
-        />
+        /> 
         Bubba the AI Emotional Chat
       </h2>
       <p className="text-gray-600">
@@ -136,13 +171,13 @@ const EmotionChat = () => {
       </form>
 
       {emotion && (
-        <div className="emotion-display flex items-center gap-2 mt-4">
+        <div className="emotion-display">
           <strong>Detected Emotion:</strong> {getEmotionIcon(emotion)}
         </div>
       )}
 
       {response && (
-        <div className="response-display mt-4">
+        <div className="response-display">
           <strong>Yorkie:</strong> {response}
         </div>
       )}

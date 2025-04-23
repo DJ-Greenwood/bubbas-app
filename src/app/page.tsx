@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import '../app/globals.css';
 
 export default function Home() {
   return (
@@ -10,14 +11,7 @@ export default function Home() {
       </a>
 
       {/* Header */}
-      <header className="bg-white py-4 shadow-md">
-        <div className="container mx-auto px-4 flex items-center justify-between">
-          <div className="text-2xl font-bold text-gray-800">Bubbas.ai</div> {/* Replace with logo */}
-          <nav>
-            {/* Add navigation links here if needed */}
-          </nav>
-        </div>
-      </header>
+  
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-500 to-purple-500 text-white py-20">

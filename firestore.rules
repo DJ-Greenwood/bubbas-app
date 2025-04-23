@@ -2,27 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each user can read/write/delete their own account
+    // 👤 USER ROOT: Each user can read/write/delete their own account
     match /users/{userId} {
       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
 
-      // Profile subcollections like billing, preferences
+      // 🔧 Subcollections like preferences, billing history, journal entries
       match /{document=**} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // 📝 Encrypted journal entries (new subcollection)
+      match /journal/{entryId} {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // Journals (1 per entry)
+    // 🗂️ Legacy top-level journals collection (optional — remove if not used)
     match /journals/{userId} {
       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
 
-      // Support /journals/{userId}/{entryId}
       match /{entryId} {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // Chats or mood logs (same structure)
+    // 💬 Chats or mood logs (similar structure to journals)
     match /chats/{userId} {
       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
 
@@ -31,12 +35,12 @@ service cloud.firestore {
       }
     }
 
-    // Billing metadata (not actual card info – handled by Stripe)
+    // 💳 Billing metadata (DO NOT store card data here)
     match /billing/{userId} {
       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Admin config/settings
+    // ⚙️ Admin configuration documents (restricted to admin accounts)
     match /admin/{docId} {
       allow read, write: if request.auth != null && request.auth.token.admin == true;
     }

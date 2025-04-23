@@ -78,12 +78,41 @@ body {
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+/* Optional: your own custom styles or overrides go here */
+body {
+  @apply bg-white text-gray-800 antialiased;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  @apply font-semibold;
+}
+
+/* Example custom class */
+.btn-primary {
+  @apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
+}
+
+.login-form {
+@apply max-w-md mx-auto p-6 bg-white rounded-lg shadow-md;
+}
+
+.login-form input {
+@apply text-right border border-gray-300 rounded-lg p-2;
+}
+
+.login-form button {
+@apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
+}
+
+.signup-form {
+@apply max-w-md mx-auto p-6 bg-white rounded-lg shadow-md;
+}
+.signup-form input {
+@apply text-right border border-gray-300 rounded-lg p-2;
+}
+.signup-form button {
+@apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
+}
+.terms-of-service {
+@apply text-sm text-blue-600 mt-4;
+}

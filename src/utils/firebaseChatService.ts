@@ -1,49 +1,89 @@
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { initializeApp } from "firebase/app";
-import { getApp, getApps } from "firebase/app";
 
-// ✅ Initialize Firebase (only once)
-const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+// 🔐 Firebase Callable Function
+const functions = getFunctions();
+const callOpenAI = httpsCallable(functions, "callOpenAI");
+
+let conversationHistory: { role: string; content: string }[] = [];
+
+const openai_model = process.env.NEXT_OPENAI_MODEL || "gpt-4o"; // fallback model
+
+// 🔄 Reset the conversation history with a system prompt
+const resetConversation = (systemPrompt: string) => {
+  console.log("[resetConversation] Resetting conversation with system prompt:", systemPrompt);
+  conversationHistory = [{ role: "system", content: systemPrompt }];
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const functions = getFunctions(app);
-
-// 🧸 Firebase callable functions
-const startEmotionalSupportSession = async () => {
-  const fn = httpsCallable(functions, "startEmotionalSupportSession");
-  return fn();
-};
-
+// 💬 Continue conversation with context via Firebase Function
 const askQuestion = async (question: string): Promise<string> => {
-  const fn = httpsCallable(functions, "askQuestion");
-  const result = await fn({ question }) as { data: { reply: string } };
-  return result.data.reply;
+  console.log("[askQuestion] Received question:", question);
+  conversationHistory.push({ role: "user", content: question });
+
+  try {
+    console.log("[askQuestion] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
+    const response = await callOpenAI({
+      messages: conversationHistory,
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const assistantReply = (response.data as { reply: string })?.reply || "No response generated";
+    console.log("[askQuestion] Received response from Firebase Callable Function:", assistantReply);
+
+    conversationHistory.push({ role: "assistant", content: assistantReply });
+    return assistantReply;
+  } catch (error) {
+    console.error("[askQuestion] Error while calling Firebase Callable Function:", error);
+    throw error;
+  }
 };
 
+// ✨ One-off message via Firebase Function
 const generateResponse = async (prompt: string): Promise<string> => {
-  const fn = httpsCallable(functions, "generateResponse");
-  const result = await fn({ prompt }) as { data: { reply: string } };
-  return result.data.reply;
+  console.log("[generateResponse] Received prompt:", prompt);
+
+  try {
+    console.log("[generateResponse] Sending request to Firebase Callable Function with prompt:", prompt);
+    const response = await callOpenAI({
+      messages: [{ role: "user", content: prompt }],
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as { reply: string };
+    console.log("[generateResponse] Received response from Firebase Callable Function:", data.reply);
+
+    return data.reply || "No response generated";
+  } catch (error) {
+    console.error("[generateResponse] Error while calling Firebase Callable Function:", error);
+    throw error;
+  }
 };
 
-const resetConversation = async (prompt: string): Promise<string> => {
-  const fn = httpsCallable(functions, "resetConversation");
-  const result = await fn({ prompt }) as { data: { message: string } };
-  return result.data.message;
+// 🧸 Start emotional support session with a custom system prompt
+const startEmotionalSupportSession = () => {
+  const emotionalPrompt = `
+You are Bubbas, a compassionate AI companion. Your goal is to help the user reflect on their day, process emotions, and feel supported.
+Ask thoughtful, open-ended questions like:
+
+- "How did your day go?"
+- "What’s been on your mind lately?"
+- "Any plans for the weekend or time off?"
+- "What’s something you’re looking forward to?"
+- "Do you want to talk about anything that’s bothering you?"
+
+Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
+  `.trim();
+
+  console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
+  resetConversation(emotionalPrompt);
 };
 
-const chatService = {
+const firebaseChatService = {
+  resetConversation,
   askQuestion,
   generateResponse,
   startEmotionalSupportSession,
-  resetConversation,
 };
 
-export default chatService;
+export default firebaseChatService;

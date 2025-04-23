@@ -1,7 +1,9 @@
-import type {Metadata} from 'next';
-import {Geist, Geist_Mono} from 'next/font/google';
+import type { Metadata } from 'next';
+import ClientNav from '@/components/ClientNav/ClientNav'; 
+import { Geist, Geist_Mono } from 'next/font/google';
+import '../../public/assets/css/globals.css';
+
 import Link from 'next/link';
-import './globals.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,25 +31,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
+      <head />
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <header className="bg-white py-4">
+            <div className="container mx-auto px-4 flex items-center justify-between">
+              {/* Left side: Logo or brand */}
+              <Link href="/" className="text-2xl font-bold text-gray-800">
+                Bubbas.AI
+              </Link>
 
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <header className="bg-gray-100 py-4">
-        <nav className="container mx-auto">
-        {/* TODO: Replace with actual authentication check */}
-        {true ? ( // Placeholder: Replace 'true' with actual authentication check
-          <ul className="flex space-x-4">
-          <li><Link href="/">Home</Link></li>
-          <li><Link href="/chat">Chat</Link></li>
-          <li><Link href="/journal">Journal</Link></li>
-          <li><Link href="/profile">Profile</Link></li>
-          </ul>
-        ) : null}
-        </nav>
-      </header>
-      <main>{children}</main>
-      </body>
+              {/* Right side: Navigation (Login, etc.) */}
+              <nav>
+                <ClientNav />
+              </nav>
+            </div>
+          </header>
+
+          <main>{children}</main>
+        </body>
     </html>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import chatService from '../utils/firebaseChatService';
-import { encryptUserData } from '../utils/encrypt';
+import { encryptEntry } from '../utils/encryption';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../components/context/AuthContext';
@@ -46,7 +46,7 @@ export default function ChatFree() {
 
       // Encrypt and store locally (optional)
     if (currentUser) {
-      const encrypted = encryptUserData(currentUser.uid, { messages: [...newMessages, reply] });
+      const encrypted = encryptEntry({ uid: currentUser.uid, messages: [...newMessages, reply] });
       await setDoc(doc(db, 'usage', currentUser.uid), {
         date: new Date().toDateString(),
         count: DAILY_LIMIT - (remainingChats - 1),

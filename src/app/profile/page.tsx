@@ -1,6 +1,7 @@
 // src/app/profile/page.tsx
 
 import UserProfile from '@/components/auth/UserProfile';
+import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
 
 const ProfilePage = () => {
   // Placeholder user data - replace with actual data fetching
@@ -55,9 +56,11 @@ const ProfilePage = () => {
   };
 
   return (
-    <div>
-         <UserProfile user={userData} />
-    </div>
+    <RequireAuth>
+      <div>
+          <UserProfile user={userData} />
+      </div>
+    </RequireAuth>
   );
 };
 
