@@ -1,12 +1,11 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import chatService from '../../utils/aiservices';
+import chatService from '../../utils/firebaseChatService';
 import { functions, db, auth } from '../../utils/firebaseClient';
 import { httpsCallable } from "firebase/functions";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { encryptData, decryptData } from '../../utils/encryption';
 
-// 🧠 Define emotion types and response format
 type Emotion =
   | "joyful" | "peaceful" | "tired" | "nervous"
   | "frustrated" | "grateful" | "hopeful" | "isolated"
@@ -25,35 +24,73 @@ const EmotionChat = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [iconSize, setIconSize] = useState<'small' | 'large'>('small');
 
   const saveJournalEntry = httpsCallable(functions, "saveJournalEntry");
 
   useEffect(() => {
     chatService.startEmotionalSupportSession();
     loadJournalEntries();
+    loadUserIconPreference();
   }, []);
+
+  const loadUserIconPreference = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const profileRef = doc(db, "users", user.uid);
+    const profileSnap = await getDoc(profileRef);
+
+    if (profileSnap.exists()) {
+      const data = profileSnap.data();
+      if (data.preferences?.iconSize === 'large' || data.preferences?.iconSize === 'small') {
+        setIconSize(data.preferences.iconSize);
+      }
+    }
+  };
 
   const loadJournalEntries = async () => {
     const user = auth.currentUser;
     if (!user) return;
-
-    const ref = collection(db, "journals", user.uid, "entries");
-    const snapshot = await getDocs(ref);
-    const entries: JournalEntry[] = [];
-
-    snapshot.forEach(doc => {
-      try {
-        const rawData = doc.data() as JournalEntry;
-        const decrypted = decryptData(rawData);
-        entries.push({ ...decrypted, emotion: decrypted.emotion as Emotion });
-      } catch (err) {
-        console.warn("❌ Failed to decrypt journal entry", err);
-        setResponse("Failed to load journal entries. Please try again later.");
-      }
-    });
-
-    setJournalEntries(entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+  
+    try {
+      const ref = collection(db, "journals", user.uid, "entries");
+      const snapshot = await getDocs(ref);
+      const entries: JournalEntry[] = [];
+  
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        console.log("📄 Raw Firestore doc:", data);
+      
+        const encrypted = data.encryptedData;
+        const timestamp = data.createdAt || docSnap.id; // use doc ID if it’s a timestamp
+      
+        if (!encrypted || !timestamp) {
+          console.warn("⚠️ Missing encryptedData or timestamp");
+          return;
+        }
+      
+        try {
+          const decrypted = decryptData(encrypted);
+          console.log("✅ Decrypted:", decrypted);
+      
+          entries.push({
+            ...decrypted,
+            timestamp,
+            emotion: decrypted.emotion as Emotion,
+          });
+        } catch (err) {
+          console.error("❌ Decryption error:", err);
+        }
+      });
+  
+      setJournalEntries(entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+    } catch (error) {
+      console.error("❌ Error loading journal entries:", error);
+      setResponse("Failed to load journal entries. Please try again later.");
+    }
   };
+  
 
   const getEmotionIcon = (sentiment: Emotion): JSX.Element => {
     const emotionImageMap: Record<Emotion, string> = {
@@ -139,8 +176,9 @@ const EmotionChat = () => {
         />
         Bubba the AI Emotional Chat
       </h2>
+
       <p className="text-gray-600">
-        Let Yorkie help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
+        Let Bubba help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
       </p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
@@ -169,27 +207,48 @@ const EmotionChat = () => {
 
       {response && (
         <div className="response-display mt-4">
-          <strong>Yorkie:</strong> {response}
+          <strong>Bubba:</strong> {response}
         </div>
       )}
 
-      {journalEntries.length > 0 && (
-        <div className="journal mt-8 border-t pt-4">
-          <h3 className="text-lg font-semibold mb-2">📝 Your Emotional Journal</h3>
-          <ul className="space-y-4">
-            {journalEntries.map((entry, index) => (
-              <li key={index} className="p-4 bg-white bg-opacity-30 rounded shadow-md">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-500">{entry.timestamp}</span>
-                  <span>{getEmotionIcon(entry.emotion)}</span>
+      <div className="journal-entries mt-6">
+        <h3 className="text-lg font-semibold">Your Journal Entries</h3>
+        {Object.entries(
+          journalEntries.reduce((acc, entry) => {
+            const date = new Date(entry.timestamp).toLocaleDateString();
+            if (!acc[date]) acc[date] = [];
+            acc[date].push(entry);
+            return acc;
+          }, {} as Record<string, JournalEntry[]>)
+        ).map(([date, entries]) => (
+          <details key={date} className="mt-2">
+            <summary className="cursor-pointer text-blue-600 hover:underline">
+              {date}
+            </summary>
+            <div className="mt-2 space-y-2">
+              {entries.map((entry, index) => (
+                <div
+                  key={index}
+                  className="p-3 border rounded bg-gray-50 shadow-sm"
+                >
+                  <p>
+                    <strong>You:</strong> {entry.userText}
+                  </p>
+                  <p>
+                    <strong>Bubba:</strong> {entry.bubbaReply}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <strong>Emotion:</strong> {getEmotionIcon(entry.emotion)}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {new Date(entry.timestamp).toLocaleTimeString()}
+                  </p>
                 </div>
-                <p><strong>You:</strong> {entry.userText}</p>
-                <p><strong>Yorkie:</strong> {entry.bubbaReply}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
     </div>
   );
 };

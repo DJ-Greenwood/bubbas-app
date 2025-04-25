@@ -41,6 +41,8 @@ body {
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --profile-image-width: 16px;
+    --profile-image-height: 16px;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -75,6 +77,8 @@ body {
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --profile-image-width: 16px;
+    --profile-image-height: 16px;
   }
 }
 
@@ -115,4 +119,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 .terms-of-service {
 @apply text-sm text-blue-600 mt-4;
+}
+
+.bubba-images{
+@apply object-cover rounded;
+width: var(--profile-image-width, 4rem);
+height: var(--profile-image-height, 4rem);
 }

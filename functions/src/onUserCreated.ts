@@ -25,7 +25,8 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
       preferences: {
         tone: "friendly",
         theme: "light",
-        startPage: "journal"
+        startPage: "journal",
+        iconSize: "small"
       },
       usage: {
         tokens: { lifetime: 0, monthly: {} },

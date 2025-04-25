@@ -1,5 +1,5 @@
 // app/emotion/page.tsx
-import EmotionChat from '../../components/EmotionChat/EmotionChat';
+import EmotionChat from '../../components/JournalChat/JournalChat';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
 
 export default function EmotionChatPage() {

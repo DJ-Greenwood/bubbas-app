@@ -108,7 +108,7 @@ const EmotionChat = () => {
         Bubba the AI Emotional Chat
       </h2>
       <p className="text-gray-600">
-        Let Yorkie help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
+        Let Bubba help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
       </p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">

@@ -13,16 +13,21 @@ const SignUpComponent = () => {
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passphrase, setPassphrase] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSignUp = async () => {
-    if (typeof window === "undefined") return; // Ensure client-side execution
+    if (typeof window === 'undefined') return;
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       console.log('✅ Bubba: New buddy signed up!');
-      router.push('/profile'); // ✅ Redirect to profile after signup
+
+      // Store passphrase in localStorage (not Firestore)
+      localStorage.setItem('bubbaPassphrase', passphrase);
+
+      router.push('/profile');
     } catch (error: any) {
       setError(error.message || 'Sign-up failed');
     }
@@ -32,9 +37,13 @@ const SignUpComponent = () => {
     e.preventDefault();
     setError(null);
 
-    if (step === 2) {
+    if (step === 3) {
       if (!termsAccepted) {
         setError('Please accept the terms to continue.');
+        return;
+      }
+      if (!passphrase || passphrase.length < 4) {
+        setError('Please create a passphrase with at least 4 characters.');
         return;
       }
       await handleSignUp();
@@ -105,6 +114,30 @@ const SignUpComponent = () => {
         )}
 
         {step === 2 && (
+          <>
+            <p>
+              Can you create a special secret passphrase? 🗝️  
+              <br />
+              We'll use this to keep your conversations with Bubba extra private.
+            </p>
+            <input
+              type="text"
+              placeholder="Create a private passphrase..."
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="w-full p-2 rounded border mt-1"
+              required
+            />
+            <button
+              type="submit"
+              className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Next →
+            </button>
+          </>
+        )}
+
+        {step === 3 && (
           <>
             <p>Last thing! Can you paw-mise to accept the terms before we play?</p>
             <label className="text-sm text-gray-700 flex items-center gap-2">

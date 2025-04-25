@@ -15,7 +15,6 @@ export default function ClientNav() {
             <li><Link href="/">Home</Link></li>
             <li><Link href="/chat">Chat</Link></li>
             <li><Link href="/journal">Journal</Link></li>
-            <li><Link href="/emotion">Emotional Chat</Link></li>
             <li><Link href="/profile">Profile</Link></li>
             <li><button onClick={() => auth.signOut()}>Sign Out</button></li>
           </>

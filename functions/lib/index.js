@@ -1,11 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.callOpenAI = exports.saveJournalEntry = exports.saveEncryptedJournal = exports.createUserProfile = void 0;
+exports.callOpenAI = exports.saveJournalEntry = exports.createUserProfile = void 0;
 // Firebase Function Exports - Entry Point
 const onUserCreated_1 = require("./onUserCreated");
 Object.defineProperty(exports, "createUserProfile", { enumerable: true, get: function () { return onUserCreated_1.createUserProfile; } });
-const saveEncryptedJournal_1 = require("./saveEncryptedJournal");
-Object.defineProperty(exports, "saveEncryptedJournal", { enumerable: true, get: function () { return saveEncryptedJournal_1.saveEncryptedJournal; } });
 const saveJournalEntry_1 = require("./saveJournalEntry");
 Object.defineProperty(exports, "saveJournalEntry", { enumerable: true, get: function () { return saveJournalEntry_1.saveJournalEntry; } });
 // Export other functions as needed
