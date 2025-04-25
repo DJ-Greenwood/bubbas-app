@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import chatService from '../utils/aiservices';
-
+import chatService from '../utils/firebaseChatService';
+import { encryptData, decryptData } from '../utils/encryption';
+import { JournalEntry } from '../types/JournalEntry';
 
 // 🧠 Define emotion types and response format
 type Emotion =
@@ -8,19 +9,13 @@ type Emotion =
   | "frustrated" | "grateful" | "hopeful" | "isolated"
   | "confused" | "reflective" | "sad" | "angry";
 
-interface JournalEntry {
-  userText: string;
-  bubbaReply: string;
-  emotion: Emotion;
-  timestamp: string;
-}
-
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
   const [emotion, setEmotion] = useState<Emotion | null>(null);
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<string[]>([]);
+
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -86,7 +81,7 @@ const EmotionChat = () => {
       const reply = await chatService.askQuestion(userInput);
       setResponse(reply);
 
-      // 📝 Add to journal
+      // 📝 Add to journal with encryption
       const timestamp = new Date().toLocaleString();
       const newEntry: JournalEntry = {
         userText: userInput,
@@ -94,7 +89,9 @@ const EmotionChat = () => {
         emotion: detectedEmotion,
         timestamp,
       };
-      setJournalEntries((prev) => [newEntry, ...prev]); // newest first
+
+      const encryptedEntry = encryptData(newEntry);
+      setJournalEntries((prev) => [encryptedEntry, ...prev]); // newest first
     } catch (error) {
       console.error("Error:", error);
       setResponse("Oops! Something went wrong. Bubbas is trying again.");
@@ -152,16 +149,19 @@ const EmotionChat = () => {
         <div className="journal mt-8 border-t pt-4">
           <h3 className="text-lg font-semibold mb-2">📝 Your Emotional Journal</h3>
           <ul className="space-y-4">
-            {journalEntries.map((entry, index) => (
-              <li key={index} className="p-4 bg-white bg-opacity-30 rounded shadow-md">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-500">{entry.timestamp}</span>
-                  <span>{getEmotionIcon(entry.emotion)}</span>
-                </div>
-                <p><strong>You:</strong> {entry.userText}</p>
-                <p><strong>Yorkie:</strong> {entry.bubbaReply}</p>
-              </li>
-            ))}
+            {journalEntries.map((encryptedEntry, index) => {
+              const decryptedEntry = decryptData(encryptedEntry); // Decrypt the entry
+              return (
+                <li key={index} className="p-4 bg-white bg-opacity-30 rounded shadow-md">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-500">{decryptedEntry.timestamp}</span>
+                    <span>{getEmotionIcon(decryptedEntry.emotion as Emotion)}</span>
+                  </div>
+                  <p><strong>You:</strong> {decryptedEntry.userText}</p>
+                  <p><strong>Yorkie:</strong> {decryptedEntry.bubbaReply}</p>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

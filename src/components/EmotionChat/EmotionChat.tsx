@@ -1,26 +1,16 @@
 'use client';
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import chatService from '../../utils/aiservices';
 import { functions, db, auth } from '../../utils/firebaseClient';
-import { encryptEntry, decryptEntry } from '../../utils/encryption';
 import { httpsCallable } from "firebase/functions";
 import { collection, getDocs } from "firebase/firestore";
+import { encryptData, decryptData } from '../../utils/encryption';
 
 // 🧠 Define emotion types and response format
 type Emotion =
-  | "joyful"
-  | "peaceful"
-  | "tired"
-  | "nervous"
-  | "frustrated"
-  | "grateful"
-  | "hopeful"
-  | "isolated"
-  | "confused"
-  | "reflective"
-  | "sad"
-  | "angry";
+  | "joyful" | "peaceful" | "tired" | "nervous"
+  | "frustrated" | "grateful" | "hopeful" | "isolated"
+  | "confused" | "reflective" | "sad" | "angry";
 
 interface JournalEntry {
   userText: string;
@@ -36,7 +26,7 @@ const EmotionChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
 
-  const saveEncryptedJournal = httpsCallable(functions, "saveEncryptedJournal");
+  const saveJournalEntry = httpsCallable(functions, "saveJournalEntry");
 
   useEffect(() => {
     chatService.startEmotionalSupportSession();
@@ -53,15 +43,16 @@ const EmotionChat = () => {
 
     snapshot.forEach(doc => {
       try {
-        const decrypted = decryptEntry(doc.data().encryptedData);
-        entries.push(decrypted);
+        const rawData = doc.data() as JournalEntry;
+        const decrypted = decryptData(rawData);
+        entries.push({ ...decrypted, emotion: decrypted.emotion as Emotion });
       } catch (err) {
-        console.warn("Failed to decrypt journal entry", err);
+        console.warn("❌ Failed to decrypt journal entry", err);
+        setResponse("Failed to load journal entries. Please try again later.");
       }
     });
 
-    entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    setJournalEntries(entries);
+    setJournalEntries(entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
   };
 
   const getEmotionIcon = (sentiment: Emotion): JSX.Element => {
@@ -81,7 +72,6 @@ const EmotionChat = () => {
     };
 
     const imageUrl = emotionImageMap[sentiment] || "/assets/images/emotions/default.jpg";
-
     return <img src={imageUrl} alt={sentiment} className="w-16 h-16 object-cover rounded" />;
   };
 
@@ -101,6 +91,7 @@ const EmotionChat = () => {
     }
 
     console.warn("Unexpected emotion returned:", result);
+    setResponse("Bubba is unsure how to interpret that. Let's try again.");
     return "reflective";
   };
 
@@ -126,12 +117,12 @@ const EmotionChat = () => {
         timestamp: new Date().toISOString()
       };
 
-      const encrypted = encryptEntry(newEntry);
-      await saveEncryptedJournal({ encryptedData: encrypted });
+      const encryptedEntry = encryptData(newEntry);
+      await saveJournalEntry({ entryData: encryptedEntry });
       setJournalEntries(prev => [newEntry, ...prev]);
     } catch (error) {
       console.error("Error:", error);
-      setResponse("Oops! Something went wrong. Bubbas is trying again.");
+      setResponse(`Oops! Something went wrong. Bubbas is trying again. Error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsLoading(false);
       setUserInput("");
@@ -145,7 +136,7 @@ const EmotionChat = () => {
           src='/assets/images/emotions/default.jpg'
           alt="Bubba the AI"
           className="w-16 h-16 object-cover rounded"
-        /> 
+        />
         Bubba the AI Emotional Chat
       </h2>
       <p className="text-gray-600">
@@ -171,13 +162,13 @@ const EmotionChat = () => {
       </form>
 
       {emotion && (
-        <div className="emotion-display">
+        <div className="emotion-display mt-4">
           <strong>Detected Emotion:</strong> {getEmotionIcon(emotion)}
         </div>
       )}
 
       {response && (
-        <div className="response-display">
+        <div className="response-display mt-4">
           <strong>Yorkie:</strong> {response}
         </div>
       )}

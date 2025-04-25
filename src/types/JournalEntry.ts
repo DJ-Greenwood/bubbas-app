@@ -1,5 +1,5 @@
 // Define or import the JournalEntry type
-type JournalEntry = {
+export type JournalEntry = {
   userText: string;
   bubbaReply: string;
   emotion: string;

@@ -1,62 +1,63 @@
 import { onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { getFirestore } from "firebase-admin/firestore";
-import OpenAI from "openai";
 import { CallableRequest } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps } from "firebase-admin/app";
+import OpenAI from "openai";
+import { ChatCompletionMessageParam } from "openai/resources/chat";
 
+// Initialize Firebase app if not already initialized
 if (!getApps().length) {
   console.log("Initializing Firebase app...");
-  initializeApp(); // ✅ Safe — will only run once
+  initializeApp(); // Safe — only runs once
 }
-const db = getFirestore();
 
+// Define secrets for OpenAI API key and model
 const OPENAI_API_KEY = defineSecret("openai-key");
 const OPENAI_MODEL = defineSecret("openai-model");
 
-interface PromptRequest {
-  prompt: string;
+// Request shape expected from frontend
+interface OpenAIRequest {
+  messages: { role: string; content: string }[];
+  model?: string;
+  maxTokens?: number;
 }
 
+// Firebase Callable Function definition
 export const callOpenAI = onCall(
   {
     secrets: [OPENAI_API_KEY, OPENAI_MODEL],
   },
-  async (request: CallableRequest<PromptRequest>) => {
-    console.log("Received request:", request);
+  async (request: CallableRequest<OpenAIRequest>) => {
+    console.log("[callOpenAI] Received request data:", request.data);
 
-    // Access secrets dynamically at runtime
+    const { messages, model, maxTokens } = request.data;
     const apiKey = OPENAI_API_KEY.value();
-    const model = OPENAI_MODEL.value() || "gpt-4o";
+    const defaultModel = OPENAI_MODEL.value() || "gpt-4o";
 
-    // Add a safeguard to ensure the prompt is not empty
-    if (!request.data.prompt || typeof request.data.prompt !== 'string' || !request.data.prompt.trim()) {
-      throw new Error("Prompt must be a non-empty string.");
+    // ✅ Validate messages
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      throw new Error("Missing or invalid 'messages' array.");
     }
 
-    const prompt = request.data.prompt;
-    console.log("Using prompt:", prompt);
+    // ✅ Type assertion to match OpenAI expectations
+    const typedMessages = messages as ChatCompletionMessageParam[];
 
-    const openai = new OpenAI({
-      apiKey,
-    });
-
-    console.log("Using OpenAI model:", model);
+    // Create OpenAI instance
+    const openai = new OpenAI({ apiKey });
 
     try {
       const completion = await openai.chat.completions.create({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 150,
+        model: model || defaultModel,
+        messages: typedMessages,
+        max_tokens: maxTokens || 1000,
       });
 
-      console.log("OpenAI response:", completion);
+      const reply = completion.choices?.[0]?.message?.content || "No reply generated.";
+      console.log("[callOpenAI] OpenAI reply:", reply);
 
-      return {
-        response: completion.choices[0].message.content,
-      };
+      return { reply };
     } catch (error) {
-      console.error("Error calling OpenAI API:", error);
+      console.error("[callOpenAI] Error calling OpenAI:", error);
       throw new Error("Failed to fetch response from OpenAI.");
     }
   }

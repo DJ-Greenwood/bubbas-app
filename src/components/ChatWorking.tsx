@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import chatService from '../utils/aiservices';
+import chatService from '../utils/firebaseChatService';
 
 // 🧠 Define emotion types and response format
 type Emotion =

@@ -1,9 +1,9 @@
 // Firebase Function Exports - Entry Point
 import { createUserProfile } from './onUserCreated';
-import { saveEncryptedJournal } from './saveEncryptedJournal';
+import { saveJournalEntry } from './saveJournalEntry';
 
 // Export functions to Firebase
-export { createUserProfile, saveEncryptedJournal };
+export { createUserProfile, saveJournalEntry };
 
 // Export other functions as needed
 export { callOpenAI } from './callOpenAI';
