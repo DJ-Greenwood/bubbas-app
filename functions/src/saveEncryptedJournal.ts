@@ -7,7 +7,10 @@ if (!getApps().length) {
   initializeApp(); // ✅ Safe — will only run once
 }
 
-export const saveEncryptedJournal = onCall({ enforceAppCheck: true }, async (request) => {
+
+
+// Temporarily disable App Check during development
+export const saveEncryptedJournal = onCall(async (request) => {
   const { encryptedData } = request.data;
   const uid = request.auth?.uid;
 

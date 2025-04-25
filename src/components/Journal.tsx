@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import chatService from '../utils/aiservices';
 
+
 // 🧠 Define emotion types and response format
 type Emotion =
   | "joyful" | "peaceful" | "tired" | "nervous"

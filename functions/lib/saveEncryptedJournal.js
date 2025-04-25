@@ -1,17 +1,14 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.saveEncryptedJournal = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
-const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const app_1 = require("firebase-admin/app");
 if (!(0, app_1.getApps)().length) {
-    firebase_admin_1.default.initializeApp(); // ✅ Safe — will only run once
+    (0, app_1.initializeApp)(); // ✅ Safe — will only run once
 }
-exports.saveEncryptedJournal = (0, https_1.onCall)({ enforceAppCheck: true }, async (request) => {
+// Temporarily disable App Check during development
+exports.saveEncryptedJournal = (0, https_1.onCall)(async (request) => {
     const { encryptedData } = request.data;
     const uid = request.auth?.uid;
     if (!uid) {

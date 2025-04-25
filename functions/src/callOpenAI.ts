@@ -12,9 +12,7 @@ if (!getApps().length) {
 const db = getFirestore();
 
 const OPENAI_API_KEY = defineSecret("openai-key");
-console.log("OpenAI API Key:", OPENAI_API_KEY.value()); // Log the key for debugging (remove in production)
 const OPENAI_MODEL = defineSecret("openai-model");
-console.log("OpenAI Model:", OPENAI_MODEL.value()); // Log the model for debugging (remove in production)
 
 interface PromptRequest {
   prompt: string;
@@ -27,20 +25,22 @@ export const callOpenAI = onCall(
   async (request: CallableRequest<PromptRequest>) => {
     console.log("Received request:", request);
 
-    const prompt = request.data.prompt;
+    // Access secrets dynamically at runtime
+    const apiKey = OPENAI_API_KEY.value();
+    const model = OPENAI_MODEL.value() || "gpt-4o";
 
-    if (!prompt || typeof prompt !== "string") {
-      console.error("Invalid prompt:", prompt);
+    // Add a safeguard to ensure the prompt is not empty
+    if (!request.data.prompt || typeof request.data.prompt !== 'string' || !request.data.prompt.trim()) {
       throw new Error("Prompt must be a non-empty string.");
     }
 
+    const prompt = request.data.prompt;
     console.log("Using prompt:", prompt);
 
     const openai = new OpenAI({
-      apiKey: OPENAI_API_KEY.value(),
+      apiKey,
     });
 
-    const model = OPENAI_MODEL.value() || "gpt-4o";
     console.log("Using OpenAI model:", model);
 
     try {

@@ -11,8 +11,12 @@ service cloud.firestore {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
 
-      // 📝 Encrypted journal entries (new subcollection)
-      match /journal/{entryId} {
+    // 🗂️ Journals structure
+    match /journals/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+
+      // ✅ Explicitly allow access to entries subcollection
+      match /entries/{entryId} {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
