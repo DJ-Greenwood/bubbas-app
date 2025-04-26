@@ -1,7 +1,7 @@
+// src/functions/createUserProfile.ts
 import { auth } from "firebase-functions/v1";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { initializeApp, getApps } from 'firebase-admin/app';
-
 
 if (!getApps().length) {
   initializeApp();
@@ -14,44 +14,54 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
   const journalRootRef = db.doc(`journals/${uid}`);
   const journalEntryRef = db.collection(`journals/${uid}/entries`).doc();
 
-  const userPassPhrase = event.customClaims?.passphrase || uid; // Use UID as fallback";
-  
+  const now = new Date().toISOString();
+  const userPassPhrase = event.customClaims?.passphrase || uid; // fallback to UID
 
   try {
     await userRef.set({
       email: event.email || '',
       username: event.displayName || '',
       phoneNumber: event.phoneNumber || '',
-      createdAt: new Date().toISOString(),
-      passPhrase: userPassPhrase, // ✨ Save encrypted
+      createdAt: now,
+      passPhrase: userPassPhrase, // 🔐 Encrypt or salt client-side later if needed
       agreedTo: {
-        terms: new Date().toISOString(),
-        privacy: new Date().toISOString(),
-        ethics: new Date().toISOString(),
+        terms: now,
+        privacy: now,
+        ethics: now,
       },
       preferences: {
-        tone: 'friendly',
-        theme: 'light',
-        startPage: '/chat',
+        tone: 'friendly',         // Tone setting (friendly / professional / casual / etc.)
+        theme: 'light',           // UI theme
+        startPage: '/chat',        // Where to start when login
+        localStorageEnabled: false, // ✨ Whether journals are saved locally too
       },
       usage: {
-        tokens: { lifetime: 0, monthly: {} },
+        tokens: {
+          lifetime: 0,
+          monthly: {},            // e.g., { "2024-05": 12000 }
+        },
         voiceChars: {
-          tts: { lifetime: 0, monthly: {} },
-          stt: { lifetime: 0, monthly: {} },
+          tts: {
+            lifetime: 0,
+            monthly: {},          // e.g., { "2024-05": 35000 }
+          },
+          stt: {
+            lifetime: 0,
+            monthly: {},          // e.g., { "2024-05": 1200 }
+          },
         },
       },
       subscription: {
-        tier: 'free',
-        activationDate: new Date().toISOString(),
+        tier: 'free',              // free, basic, pro, etc.
+        activationDate: now,
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // +30 days
       },
       features: {
-        memory: true,
-        tts: true,
-        stt: true,
-        emotionalInsights: true,
-      }
+        memory: true,              // Memory feature enabled
+        tts: true,                 // Text-to-Speech feature enabled
+        stt: true,                 // Speech-to-Text feature enabled
+        emotionalInsights: true,   // Emotional analysis feature
+      },
     });
 
     console.log("✅ User profile created:", uid);
@@ -61,18 +71,20 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
 
   try {
     await journalRootRef.set({ initializedAt: FieldValue.serverTimestamp() });
-    console.log("✅ Journal root created:", journalRootRef.path);
+    console.log("✅ Journal root initialized:", journalRootRef.path);
   } catch (err) {
     console.error("❌ Failed to create journal root:", err);
   }
 
   try {
-    console.log("📌 New journal entry path:", journalEntryRef.path);
+    console.log("📌 Creating welcome journal entry:", journalEntryRef.path);
     await journalEntryRef.set({
-      encryptedData: "",
+      encryptedData: "", // empty first, user will save real data later
       createdAt: FieldValue.serverTimestamp(),
       emotion: "joyful",
-      note: "Welcome journal created automatically."
+      note: "Welcome journal created automatically.",
+      deleted: false,
+      version: 1,
     });
     console.log("✅ Welcome journal entry created");
   } catch (err) {

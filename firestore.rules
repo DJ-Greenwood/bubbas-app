@@ -2,49 +2,43 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 👤 USER ROOT: Each user can read/write/delete their own account
+    // 👤 USER ROOT: Each user can read/write their own user profile
     match /users/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // 🔧 Subcollections like preferences, billing history, journal entries
+      // 🔧 Allow subcollections like preferences, billing, etc.
       match /{document=**} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
-
-    match /databases/{database}/documents {
-      match /journals/{userId}/entries/{entryId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // 🗂️ Journals structure
+    // 🗂️ JOURNALS ROOT: User can manage their own journal root
     match /journals/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // ✅ Explicitly allow access to entries subcollection
+      // ✍️ JOURNAL ENTRIES: inside journals/{userId}/entries/{entryId}
       match /entries/{entryId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // 💬 Chats or mood logs (similar structure to journals)
+    // 💬 CHATS: User can manage their own chat sessions
     match /chats/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
       match /{chatId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // 💳 Billing metadata (DO NOT store card data here)
+    // 💳 BILLING: User can view and manage their own billing metadata
     match /billing/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ⚙️ Admin configuration documents (restricted to admin accounts)
+    // ⚙️ ADMIN DOCUMENTS: Only admin users can read/write these
     match /admin/{docId} {
       allow read, write: if request.auth != null && request.auth.token.admin == true;
     }
   }
-}
 }

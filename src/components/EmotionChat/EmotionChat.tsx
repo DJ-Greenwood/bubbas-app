@@ -1,25 +1,23 @@
+// src/app/emotion/EmotionChat.tsx
 'use client';
+
 import React, { useState, useEffect } from "react";
 import chatService from '../../utils/firebaseChatService';
 import { functions, db, auth } from '../../utils/firebaseClient';
 import { httpsCallable } from "firebase/functions";
 import { collection, getDocs } from "firebase/firestore";
 import { encryptData, decryptData } from '../../utils/encryption';
+import EmotionIcon, { Emotion } from '../../components/emotion/EmotionIcon';
+import { detectEmotion } from '../../components/emotion/EmotionDetector';
+import { parseFirestoreDate } from '../../utils/parseDate';
 
-// 🧠 Define emotion types
-type Emotion =
-  | "joyful" | "peaceful" | "tired" | "nervous"
-  | "frustrated" | "grateful" | "hopeful" | "isolated"
-  | "confused" | "reflective" | "sad" | "angry";
-
-// 🧠 Correct JournalEntry type
 export type JournalEntry = {
   version: number;
   userText: string;
   bubbaReply: string;
   emotion: Emotion;
   timestamp: string;
-  deleted?: boolean; // Optional soft delete flag
+  deleted?: boolean;
 };
 
 const EmotionChat = () => {
@@ -29,37 +27,33 @@ const EmotionChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-
   const [passPhrase, setPassPhrase] = useState<string>("");
 
-  useEffect(() => {
-    const fetchPassPhrase = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      try {
-        const userPreferencesRef = collection(db, "users", user.uid, "preferences");
-        const snapshot = await getDocs(userPreferencesRef);
-
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.passPhrase) {
-            setPassPhrase(data.passPhrase);
-          }
-        });
-      } catch (error) {
-        console.error("Failed to fetch passphrase:", error);
-      }
-    };
-
-    fetchPassPhrase();
-  }, []);
   const saveJournalEntry = httpsCallable(functions, "saveJournalEntry");
 
   useEffect(() => {
     chatService.startEmotionalSupportSession();
+    fetchPassPhrase();
     loadJournalEntries();
   }, []);
+
+  const fetchPassPhrase = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
+      const snapshot = await getDocs(userPreferencesRef);
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.passPhrase) {
+          setPassPhrase(data.passPhrase);
+        }
+      });
+    } catch (error) {
+      console.error("Failed to fetch passphrase:", error);
+    }
+  };
 
   const loadJournalEntries = async () => {
     const user = auth.currentUser;
@@ -71,9 +65,11 @@ const EmotionChat = () => {
 
     snapshot.forEach(doc => {
       try {
-        const rawData = doc.data() as any; // raw encrypted
-        const decrypted = decryptData(rawData, passPhrase) as JournalEntry;
-        entries.push(decrypted);
+        const rawData = doc.data() as any;
+        const decrypted = decryptData(rawData.encryptedData, passPhrase) as JournalEntry;
+        if (decrypted) {
+          entries.push({ ...decrypted, emotion: rawData.emotion, timestamp: rawData.timestamp });
+        }
       } catch (err) {
         console.warn("❌ Failed to decrypt journal entry", err);
         setResponse("Failed to load journal entries. Please try again later.");
@@ -81,45 +77,6 @@ const EmotionChat = () => {
     });
 
     setJournalEntries(entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
-  };
-
-  const getEmotionIcon = (sentiment: Emotion): JSX.Element => {
-    const emotionImageMap: Record<Emotion, string> = {
-      joyful: "/assets/images/emotions/Joyful.jpg",
-      peaceful: "/assets/images/emotions/Peaceful.jpg",
-      tired: "/assets/images/emotions/Drained.jpg",
-      nervous: "/assets/images/emotions/Nervous.jpg",
-      frustrated: "/assets/images/emotions/Frustrated.jpg",
-      grateful: "/assets/images/emotions/Greatful.jpg",
-      hopeful: "/assets/images/emotions/Hopeful.jpg",
-      isolated: "/assets/images/emotions/Isolated.jpg",
-      confused: "/assets/images/emotions/Confused.jpg",
-      reflective: "/assets/images/emotions/Reflective.jpg",
-      sad: "/assets/images/emotions/Sad.jpg",
-      angry: "/assets/images/emotions/Angry.jpg",
-    };
-    const imageUrl = emotionImageMap[sentiment] || "/assets/images/emotions/default.jpg";
-    return <img src={imageUrl} alt={sentiment} className="w-8 h-8 object-cover rounded" />;
-  };
-
-  const detectEmotion = async (message: string): Promise<Emotion> => {
-    const analysisPrompt = `This is a short message from someone: "${message}". Based on tone and word choice, what emotion are they likely feeling? Respond with only one word: joyful, peaceful, tired, nervous, frustrated, grateful, hopeful, isolated, confused, reflective, sad, or angry.`;
-    const result: string = await chatService.generateResponse(analysisPrompt);
-    const cleaned = result.trim().toLowerCase() as Emotion;
-
-    const allowedEmotions: Emotion[] = [
-      "joyful", "peaceful", "tired", "nervous", "frustrated",
-      "grateful", "hopeful", "isolated", "confused", "reflective",
-      "sad", "angry"
-    ];
-
-    if (allowedEmotions.includes(cleaned)) {
-      return cleaned;
-    }
-
-    console.warn("Unexpected emotion returned:", result);
-    setResponse("Bubba is unsure how to interpret that. Let's try again.");
-    return "reflective";
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -138,16 +95,26 @@ const EmotionChat = () => {
       setResponse(reply);
 
       const newEntry: JournalEntry = {
-        version: 1, // ✅ Version added
+        version: 1,
         userText: userInput,
         bubbaReply: reply,
         emotion: detectedEmotion,
         timestamp: new Date().toISOString(),
-        deleted: false, // ✅ default false (optional)
+        deleted: false,
       };
 
-      const encryptedEntry = encryptData({ ...newEntry, deleted: newEntry.deleted ?? false }, passPhrase);
-      await saveJournalEntry({ entryData: encryptedEntry });
+      const encryptedEntry = encryptData({
+        userText: newEntry.userText,
+        bubbaReply: newEntry.bubbaReply,
+      }, passPhrase);
+
+      await saveJournalEntry({
+        entryData: encryptedEntry,
+        emotion: newEntry.emotion,
+        timestamp: newEntry.timestamp,
+        deleted: false,
+        version: 1,
+      });
 
       setJournalEntries(prev => [newEntry, ...prev]);
     } catch (error) {
@@ -196,8 +163,8 @@ const EmotionChat = () => {
       </form>
 
       {emotion && (
-        <div className="emotion-display mt-4">
-          <strong>Detected Emotion:</strong> {getEmotionIcon(emotion)}
+        <div className="emotion-display mt-4 flex items-center gap-2">
+          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion} size={40} />
         </div>
       )}
 
@@ -222,11 +189,10 @@ const EmotionChat = () => {
                     {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleString()}</span>
-                    {getEmotionIcon(entry.emotion)}
+                    <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
+                    <EmotionIcon emotion={entry.emotion} size={24} />
                   </div>
                 </div>
-
                 {expandedIndex === index && (
                   <div className="mt-3 text-sm text-gray-700 space-y-2">
                     <p><strong>You:</strong> {entry.userText}</p>
