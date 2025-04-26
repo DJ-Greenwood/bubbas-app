@@ -1,21 +1,15 @@
-// Define or import the JournalEntry type
+// Define or import the Emotion type
+export type Emotion =
+| "joyful" | "peaceful" | "tired" | "nervous"
+| "frustrated" | "grateful" | "hopeful" | "isolated"
+| "confused" | "reflective" | "sad" | "angry";
+
+// Define the updated JournalEntry type
 export type JournalEntry = {
+  version: number;
   userText: string;
   bubbaReply: string;
-  emotion: string;
+  emotion: Emotion;
   timestamp: string;
-};
-
-// Declare and initialize the required variables
-const userInput = "Sample user input";
-const reply = "Sample reply";
-const detectedEmotion = "Happy";
-const timestamp = new Date().toISOString();
-
-// Create the new journal entry
-const newEntry: JournalEntry = {
-  userText: userInput,
-  bubbaReply: reply,
-  emotion: detectedEmotion,
-  timestamp,
+  deleted?: boolean; // default false
 };

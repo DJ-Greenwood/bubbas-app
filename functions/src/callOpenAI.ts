@@ -20,6 +20,7 @@ interface OpenAIRequest {
   messages: { role: string; content: string }[];
   model?: string;
   maxTokens?: number;
+ 
 }
 
 // Firebase Callable Function definition
@@ -49,7 +50,7 @@ export const callOpenAI = onCall(
       const completion = await openai.chat.completions.create({
         model: model || defaultModel,
         messages: typedMessages,
-        max_tokens: maxTokens || 1000,
+        max_tokens: maxTokens || 500,
       });
 
       const reply = completion.choices?.[0]?.message?.content || "No reply generated.";

@@ -2,6 +2,7 @@ import { auth } from "firebase-functions/v1";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { initializeApp, getApps } from 'firebase-admin/app';
 
+
 if (!getApps().length) {
   initializeApp();
 }
@@ -13,39 +14,46 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
   const journalRootRef = db.doc(`journals/${uid}`);
   const journalEntryRef = db.collection(`journals/${uid}/entries`).doc();
 
+  const userPassPhrase = event.customClaims?.passphrase || uid; // Use UID as fallback";
+  
+
   try {
     await userRef.set({
-      email: event.email || "",
-      createdAt: FieldValue.serverTimestamp(),
+      email: event.email || '',
+      username: event.displayName || '',
+      phoneNumber: event.phoneNumber || '',
+      createdAt: new Date().toISOString(),
+      passPhrase: userPassPhrase, // ✨ Save encrypted
       agreedTo: {
-        terms: FieldValue.serverTimestamp(),
-        privacy: FieldValue.serverTimestamp(),
-        ethics: FieldValue.serverTimestamp()
+        terms: new Date().toISOString(),
+        privacy: new Date().toISOString(),
+        ethics: new Date().toISOString(),
       },
       preferences: {
-        tone: "friendly",
-        theme: "light",
-        startPage: "journal",
-        iconSize: "small"
+        tone: 'friendly',
+        theme: 'light',
+        startPage: '/chat',
       },
       usage: {
         tokens: { lifetime: 0, monthly: {} },
         voiceChars: {
           tts: { lifetime: 0, monthly: {} },
           stt: { lifetime: 0, monthly: {} },
-        }
+        },
       },
       subscription: {
-        tier: "free",
-        activationDate: FieldValue.serverTimestamp(),
-        expirationDate: ""
+        tier: 'free',
+        activationDate: new Date().toISOString(),
+        expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // +30 days
       },
       features: {
         memory: true,
-        tts: false,
-        stt: false
+        tts: true,
+        stt: true,
+        emotionalInsights: true,
       }
     });
+
     console.log("✅ User profile created:", uid);
   } catch (err) {
     console.error("❌ Failed to create user profile:", err);

@@ -6,6 +6,7 @@ import { auth } from '../../../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import Link from 'next/link';
 import '../../../public/assets/css/globals.css';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
 const SignUpComponent = () => {
   const router = useRouter();
@@ -24,8 +25,17 @@ const SignUpComponent = () => {
       await createUserWithEmailAndPassword(auth, email, password);
       console.log('✅ Bubba: New buddy signed up!');
 
-      // Store passphrase in localStorage (not Firestore)
-      localStorage.setItem('bubbaPassphrase', passphrase);
+      // Save passphrase to Firestore
+
+      const db = getFirestore();
+      const user = auth.currentUser;
+
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(userDocRef, { passphrase }, { merge: false });
+      } else {
+        throw new Error('User not authenticated');
+      }
 
       router.push('/profile');
     } catch (error: any) {

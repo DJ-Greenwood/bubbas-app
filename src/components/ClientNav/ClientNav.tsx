@@ -12,9 +12,9 @@ export default function ClientNav() {
       <ul className="flex space-x-4">
         {user ? (
           <>
-            <li><Link href="/">Home</Link></li>
-            <li><Link href="/chat">Chat</Link></li>
-            <li><Link href="/journal">Journal</Link></li>
+            <li><Link href="/"> Home </Link></li>
+            <li><Link href="/EmotionChat"> Chat </Link></li>
+            <li><Link href="/Journal"> Journal </Link> </li>
             <li><Link href="/profile">Profile</Link></li>
             <li><button onClick={() => auth.signOut()}>Sign Out</button></li>
           </>
