@@ -12,4 +12,8 @@ export type JournalEntry = {
   emotion: Emotion;
   timestamp: string;
   deleted?: boolean; // default false
+  promptToken?: number; // optional, for tracking prompt tokens
+  completionToken?: number; // optional, for tracking completion tokens
+  totalToken?: number; // optional, for tracking total tokens
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number;  }; // optional, for tracking token usage
 };

@@ -10,15 +10,8 @@ import { encryptData, decryptData } from '../../utils/encryption';
 import EmotionIcon, { Emotion } from '../../components/emotion/EmotionIcon';
 import { detectEmotion } from '../../components/emotion/EmotionDetector';
 import { parseFirestoreDate } from '../../utils/parseDate';
+import { JournalEntry } from '@/types/JournalEntry';
 
-export type JournalEntry = {
-  version: number;
-  userText: string;
-  bubbaReply: string;
-  emotion: Emotion;
-  timestamp: string;
-  deleted?: boolean;
-};
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -114,6 +107,10 @@ const EmotionChat = () => {
         timestamp: newEntry.timestamp,
         deleted: false,
         version: 1,
+        promptToken: newEntry.promptToken, // optional, for tracking prompt tokens
+        completionToken: newEntry.completionToken, // optional, for tracking completion tokens
+        totalToken: newEntry.totalToken, // optional, for tracking total tokens
+        usage: { promptTokens: newEntry.promptToken, completionTokens: newEntry.completionToken, totalTokens: newEntry.totalToken, }, // optional, for tracking token usage
       });
 
       setJournalEntries(prev => [newEntry, ...prev]);
@@ -179,28 +176,33 @@ const EmotionChat = () => {
           <h3 className="text-lg font-semibold mb-4">📝 Your Emotional Journal</h3>
           <div className="space-y-4">
             {journalEntries.map((entry, index) => (
-              <div
+                <div
                 key={index}
-                className="bg-white bg-opacity-30 rounded shadow-md cursor-pointer p-4"
+                className="bg-white bg-opacity-30 rounded shadow-md cursor-pointer p-4 relative"
                 onClick={() => toggleExpand(index)}
-              >
+                >
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-800 font-semibold truncate max-w-xs">
-                    {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
+                  {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
-                    <EmotionIcon emotion={entry.emotion} size={24} />
+                  <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
+                  <EmotionIcon emotion={entry.emotion} size={24} />
                   </div>
                 </div>
                 {expandedIndex === index && (
                   <div className="mt-3 text-sm text-gray-700 space-y-2">
-                    <p><strong>You:</strong> {entry.userText}</p>
-                    <p><strong>Yorkie:</strong> {entry.bubbaReply}</p>
-                    <p><strong>Emotion:</strong> {entry.emotion}</p>
+                  <p><strong>You:</strong> {entry.userText}</p>
+                  <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
+                  <p><strong>Emotion:</strong> {entry.emotion}</p>
                   </div>
                 )}
-              </div>
+                <div className="absolute bottom-2 right-2 text-xs text-gray-500">
+                  <p>Prompt Tokens: {entry.promptToken || "N/A"}</p>
+                  <p>Completion Tokens: {entry.completionToken || "N/A"}</p>
+                  <p>Total Tokens: {entry.totalToken || "N/A"}</p>
+                </div>
+                </div>
             ))}
           </div>
         </div>

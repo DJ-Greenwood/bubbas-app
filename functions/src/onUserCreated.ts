@@ -85,6 +85,10 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
       note: "Welcome journal created automatically.",
       deleted: false,
       version: 1,
+      promptToken: 0, // optional, for tracking prompt tokens
+      completionToken: 0, // optional, for tracking completion tokens
+      totalToken: 0, // optional, for tracking total tokens
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, },
     });
     console.log("✅ Welcome journal entry created");
   } catch (err) {

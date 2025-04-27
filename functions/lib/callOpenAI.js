@@ -39,8 +39,17 @@ exports.callOpenAI = (0, https_1.onCall)({
             max_tokens: maxTokens || 1000,
         });
         const reply = completion.choices?.[0]?.message?.content || "No reply generated.";
+        const usage = completion.usage;
         console.log("[callOpenAI] OpenAI reply:", reply);
-        return { reply };
+        console.log("[callOpenAI] OpenAI usage:", usage);
+        return {
+            reply,
+            usage: {
+                promptTokens: usage?.prompt_tokens || 0,
+                completionTokens: usage?.completion_tokens || 0,
+                totalTokens: usage?.total_tokens || 0,
+            }
+        };
     }
     catch (error) {
         console.error("[callOpenAI] Error calling OpenAI:", error);
