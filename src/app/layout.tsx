@@ -3,6 +3,7 @@ import ClientNav from '@/components/ClientNav/ClientNav';
 import { Geist, Geist_Mono } from 'next/font/google';
 import '../../public/assets/css/globals.css';
 
+
 import Link from 'next/link';
 
 const geistSans = Geist({

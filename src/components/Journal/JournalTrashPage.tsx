@@ -3,17 +3,46 @@ import React, { useEffect, useState } from 'react';
 import { loadJournalEntries, recoverJournalEntry, hardDeleteJournalEntry } from './journalServices';
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
+import { decryptField } from '@/utils/encryption';
+import { auth, db } from '@/utils/firebaseClient';
+import { collection, getDocs } from 'firebase/firestore';
 
 const JournalTrashPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [passPhrase, setPassPhrase] = useState<string>("");
 
   useEffect(() => {
-    const fetchEntries = async () => {
-      const loaded = await loadJournalEntries('trash');
-      setEntries(loaded.entries);
+    const fetchPassPhrase = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
+      const snapshot = await getDocs(userPreferencesRef);
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.passPhrase) {
+          setPassPhrase(data.passPhrase);
+        }
+      });
     };
-    fetchEntries();
+
+    fetchPassPhrase();
   }, []);
+
+  useEffect(() => {
+    if (passPhrase) {
+      fetchEntries();
+    }
+  }, [passPhrase]);
+
+  const fetchEntries = async () => {
+    const loaded = await loadJournalEntries('trash');
+    const decrypted = loaded.entries.map(entry => ({
+      ...entry,
+      userText: decryptField(entry.userText, passPhrase),
+    }));
+    setEntries(decrypted);
+  };
 
   const handleRestore = async (timestamp: string) => {
     await recoverJournalEntry(timestamp);

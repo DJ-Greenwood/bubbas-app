@@ -1,58 +1,88 @@
 // src/utils/emotionChatService.ts
-import { db, auth } from '../utils/firebaseClient';
-import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
-import { encryptData, decryptData } from './encryption';
-import { JournalEntry } from '@/types/JournalEntry';
+'use client';
 
-const JOURNAL_ENCRYPTION_VERSION = 1;
+import { collection, doc, setDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth } from './firebaseClient';
 
-export const saveJournalEntry = async (entry: JournalEntry, passPhrase: string): Promise<void> => {
-  const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+// 📋 Type for Saving a Journal Entry
+interface SaveJournalEntry {
+  version: number;
+  createdAt: string;
+  timestamp: string; // ⏰ Used as Firestore document ID
+  emotion: string;
+  encryptedUserText: string;
+  encryptedBubbaReply: string;
+  deleted?: boolean;
+  promptToken?: number;
+  completionToken?: number;
+  totalToken?: number;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
 
-  const encryptedPayload = encryptData({
-    userText: entry.userText,
-    bubbaReply: entry.bubbaReply,
-  }, passPhrase);
+// ✅ Save Journal Entry (timestamp = doc ID)
+export const saveJournalEntry = async (entry: SaveJournalEntry) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("No authenticated user.");
 
-  const entryRef = doc(db, "journals", user.uid, "entries", entry.timestamp);
+  const entriesRef = collection(db, "journals", currentUser.uid, "entries");
+  const entryRef = doc(entriesRef, entry.timestamp); // 🆔 Use timestamp as document ID
+
+  const existingDoc = await getDoc(entryRef);
+
+  if (existingDoc.exists()) {
+    throw new Error("A journal entry with this timestamp already exists.");
+  }
 
   await setDoc(entryRef, {
-    encryptedData: encryptedPayload,
+    encryptedUserText: entry.encryptedUserText,
+    encryptedBubbaReply: entry.encryptedBubbaReply,
     emotion: entry.emotion,
     timestamp: entry.timestamp,
+    createdAt: entry.createdAt,
     deleted: entry.deleted ?? false,
-    version: JOURNAL_ENCRYPTION_VERSION,
+    version: entry.version,
+    promptToken: entry.promptToken ?? 0,
+    completionToken: entry.completionToken ?? 0,
+    totalToken: entry.totalToken ?? 0,
+    usage: entry.usage ?? {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    },
   });
+
+  console.log("✅ Journal entry saved:", entry.timestamp);
 };
 
-export const loadJournalEntries = async (passPhrase: string): Promise<JournalEntry[]> => {
-  const user = auth.currentUser;
-  if (!user) return [];
+// ✅ Load All Journal Entries
+export const loadJournalEntries = async () => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("No authenticated user.");
 
-  const ref = collection(db, "journals", user.uid, "entries");
-  const snapshot = await getDocs(ref);
+  const entriesRef = collection(db, "journals", currentUser.uid, "entries");
 
-  const entries: JournalEntry[] = [];
-  snapshot.forEach(docSnap => {
-    try {
-      const rawData = docSnap.data();
-      const decrypted = decryptData(rawData.encryptedData, passPhrase) as Partial<JournalEntry>;
+  const snapshot = await getDocs(entriesRef);
+  const entries: any[] = [];
 
-      if (decrypted) {
-        entries.push({
-          userText: decrypted.userText || '',
-          bubbaReply: decrypted.bubbaReply || '',
-          emotion: rawData.emotion,
-          timestamp: rawData.timestamp,
-          deleted: rawData.deleted ?? false,
-          version: rawData.version ?? 1,
-        });
-      }
-    } catch (error) {
-      console.error("Decryption failed:", error);
-    }
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    entries.push(data);
   });
 
-  return entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  return entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)); // 📅 Sort newest first
+};
+
+// ✅ Hard Delete a Journal Entry
+export const hardDeleteJournalEntry = async (timestamp: string) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("No authenticated user.");
+
+  const entryRef = doc(db, "journals", currentUser.uid, "entries", timestamp);
+
+  await deleteDoc(entryRef);
+  console.log("✅ Hard deleted journal entry:", timestamp);
 };

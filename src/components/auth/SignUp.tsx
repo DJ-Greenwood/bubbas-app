@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '../../../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import Link from 'next/link';
-import '../../../public/assets/css/globals.css';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import '../../../public/assets/css/globals.css';
+import CryptoJS from "crypto-js";
+import { setUserUID } from '@/utils/encryption';
 
 const SignUpComponent = () => {
   const router = useRouter();
@@ -18,24 +19,32 @@ const SignUpComponent = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getKey = (passPhrase: string): string => {
+    return CryptoJS.SHA256(passPhrase).toString();
+  };
+
   const handleSignUp = async () => {
-    if (typeof window === 'undefined') return;
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      console.log('✅ Bubba: New buddy signed up!');
-
-      // Save passphrase to Firestore
 
       const db = getFirestore();
       const user = auth.currentUser;
 
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { passphrase }, { merge: false });
+        const preferencesRef = doc(db, 'users', user.uid, 'preferences', 'security');
+        await setDoc(preferencesRef, {
+          passPhrase: getKey(passphrase),
+        });
       } else {
         throw new Error('User not authenticated');
       }
+      
+      if( !user) {
+        throw new Error('User not authenticated');
+      }
+      setUserUID(user.uid);
+      console.log('✅ User signed up successfully');
 
       router.push('/profile');
     } catch (error: any) {
@@ -62,114 +71,58 @@ const SignUpComponent = () => {
     }
   };
 
-  return (
-    <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md max-w-xl mx-auto mt-10">
-      <h2 className="flex items-center gap-3 mb-2">
-        <img
-          src="/assets/images/emotions/default.jpg"
-          alt="Bubba the AI"
-          className="w-16 h-16 object-cover rounded"
-        />
-        <span className="text-xl font-semibold"> Bubba’s Welcome Chat</span>
-      </h2>
-      <p className="text-gray-600 mb-4">
-        I’m so excited you’re here! Let’s get you signed up and wagging. 🐾
-      </p>
+  const handleBack = () => {
+    if (step > 0) setStep(step - 1);
+  };
 
-      {error && (
-        <div className="text-red-500 font-medium mb-2">
-          ⚠️ Bubba says: {error}
-        </div>
-      )}
+  return (
+    <div className="emotion-chat-container max-w-xl mx-auto mt-10 p-6 rounded shadow-md bg-white">
+      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+        <img src="/assets/images/emotions/default.jpg" alt="Bubba AI" className="w-12 h-12 rounded" />
+        Bubba’s Welcome Chat
+      </h2>
+
+      {error && <div className="text-red-500 mb-2">⚠️ {error}</div>}
 
       <form onSubmit={handleNext} className="flex flex-col gap-4">
         {step === 0 && (
           <>
-            <p>Yay! A new friend! What’s your email so we can get started?</p>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 rounded border mt-1"
-              required
-            />
-            <button
-              type="submit"
-              className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Next →
-            </button>
+            <p>What's your email?</p>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="border p-2 rounded" />
           </>
         )}
-
         {step === 1 && (
           <>
-            <p>Now, let’s set a secret password so only you can visit our hideout 🐾</p>
-            <input
-              type="password"
-              placeholder="Create a password..."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-2 rounded border mt-1"
-              required
-            />
-            <button
-              type="submit"
-              className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Next →
-            </button>
+            <p>Create a password:</p>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="border p-2 rounded" />
           </>
         )}
-
         {step === 2 && (
           <>
-            <p>
-              Can you create a special secret passphrase? 🗝️  
-              <br />
-              We'll use this to keep your conversations with Bubba extra private.
-            </p>
-            <input
-              type="text"
-              placeholder="Create a private passphrase..."
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              className="w-full p-2 rounded border mt-1"
-              required
-            />
-            <button
-              type="submit"
-              className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Next →
-            </button>
+            <p>Create a secret passphrase:</p>
+            <input type="text" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} required className="border p-2 rounded" />
           </>
         )}
-
         {step === 3 && (
           <>
-            <p>Last thing! Can you paw-mise to accept the terms before we play?</p>
-            <label className="text-sm text-gray-700 flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-              />
-              I agree to the{' '}
-              <Link href="/terms" className="text-blue-600 underline">
-                Terms of Service
-              </Link>
+            <p>Accept the terms:</p>
+            <label className="text-sm flex items-center gap-2">
+              <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} />
+              Accept Terms
             </label>
-
-            <button
-              type="submit"
-              className="self-start bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              ✅ Click to sign up and continue to Bubbas.AI
-            </button>
           </>
         )}
+
+        <div className="flex gap-4">
+          {step > 0 && (
+            <button type="button" onClick={handleBack} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">
+              ← Back
+            </button>
+          )}
+          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            {step === 3 ? 'Sign Up' : 'Next →'}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -1,52 +1,81 @@
 // src/utils/encryption.ts
 import CryptoJS from "crypto-js";
 
-// Dynamic user-specific key
-const getKey = (passPhrase: string): string => {
-  return CryptoJS.SHA256(passPhrase).toString();
+const appSalt = process.env.NEXT_PUBLIC_ENCRYPTION_SALT || "default-app-salt-please-change-me";
+
+let userUID = ""; // Initialize empty
+
+// Set user UID at login/signup
+export const setUserUID = (uid: string) => {
+  userUID = uid;
 };
 
-// Encrypts full object OR string safely
-export const encryptData = (data: object | string, passPhrase: string): string => {
-  const rawData = typeof data === "string" ? data : JSON.stringify(data);
+// Get encryption key (passPhrase + per-user salt)
+export const getKey = (passPhrase: string): string => {
+  if (!userUID) {
+    throw new Error("User UID not set! Please call setUserUID(uid) after login.");
+  }
+  const userSpecificSalt = userUID + appSalt;
+  return CryptoJS.SHA256(passPhrase + userSpecificSalt).toString();
+};
+
+// Encrypt a full data object
+export const encryptData = (data: object, passPhrase: string): string => {
+  const rawData = JSON.stringify(data);
   const key = getKey(passPhrase);
   return CryptoJS.AES.encrypt(rawData, key).toString();
 };
 
-// Decrypts safely and returns parsed object or string
+// Decrypt a full data object
 export const decryptData = (encryptedData: string, passPhrase: string): any => {
-  try {
-    const key = getKey(passPhrase);
-    const bytes = CryptoJS.AES.decrypt(encryptedData, key);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decrypted) throw new Error("Empty decryption result");
-    try {
-      return JSON.parse(decrypted); // Try to parse as object
-    } catch {
-      return decrypted; // If not JSON, return as plain string
-    }
-  } catch (error) {
-    console.error("Decryption failed:", error);
-    return undefined;
-  }
+  const key = getKey(passPhrase);
+  const bytes = CryptoJS.AES.decrypt(encryptedData, key);
+  const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+  return JSON.parse(decrypted);
 };
 
-// Encrypts small fields (e.g., passphrase) securely
+// Encrypt a single field
 export const encryptField = (text: string, passPhrase: string): string => {
   const key = getKey(passPhrase);
   return CryptoJS.AES.encrypt(text, key).toString();
 };
 
-// Decrypts small fields with error fallback
+// Decrypt a single field
 export const decryptField = (cipherText: string, passPhrase: string): string => {
+  const key = getKey(passPhrase);
+  const bytes = CryptoJS.AES.decrypt(cipherText, key);
+  return bytes.toString(CryptoJS.enc.Utf8);
+};
+
+// ----------------------
+// NEW: Device Secret Handshake logic
+// ----------------------
+
+// Generate a new device secret (random UUID)
+export const generateDeviceSecret = (): string => {
+  // Use random UUID or randomHex here
+  return crypto.randomUUID(); // Built-in secure random generator
+};
+
+// Encrypt the device secret using user passPhrase
+export const encryptDeviceSecret = (deviceSecret: string, userPassPhrase: string): string => {
+  const key = getKey(userPassPhrase);
+  return CryptoJS.AES.encrypt(deviceSecret, key).toString();
+};
+
+// Decrypt the device secret using user passPhrase
+export const decryptDeviceSecret = (encryptedDeviceSecret: string, userPassPhrase: string): string => {
   try {
-    const key = getKey(passPhrase);
-    const bytes = CryptoJS.AES.decrypt(cipherText, key);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decrypted) throw new Error("Empty decrypted field");
-    return decrypted;
+    const key = getKey(userPassPhrase);
+    const bytes = CryptoJS.AES.decrypt(encryptedDeviceSecret, key);
+    return bytes.toString(CryptoJS.enc.Utf8);
   } catch (error) {
-    console.error("Field decryption failed:", error);
-    return "[Error decrypting]";
+    console.error("Device secret decryption failed:", error);
+    return "[Error decrypting device secret]";
   }
+};
+
+// Derive encryption key from device secret (for journal encryption)
+export const getEncryptionKeyFromDeviceSecret = (deviceSecret: string): string => {
+  return CryptoJS.SHA256(deviceSecret + appSalt).toString(); // Add salt for extra safety
 };

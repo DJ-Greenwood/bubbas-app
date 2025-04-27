@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { auth } from "../../../firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import '../../../public/assets/css/globals.css';
+import { setUserUID } from '@/utils/encryption';
 
 const LoginComponent = () => {
   const router = useRouter();
@@ -15,8 +16,14 @@ const LoginComponent = () => {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      
+      const user = auth.currentUser;
+      if (user) {
+        setUserUID(user.uid);
+      
       console.log("✅ User logged in successfully");
-      router.push("/profile"); // ✅ Redirect to profile after login
+      router.push("/authorize-device"); // <-- 🚀 New flow!
+    }
     } catch (error: any) {
       setError(error.message || "Login failed");
     }
@@ -31,48 +38,41 @@ const LoginComponent = () => {
     }
   };
 
+  const handleBack = () => {
+    if (step > 0) setStep(step - 1);
+  };
+
   return (
     <div className="login-convo max-w-md mx-auto bg-white p-6 rounded shadow-md mt-10">
       <h2 className="flex items-center gap-3 mb-2">
-        <img
-          src="/assets/images/emotions/default.jpg"
-          alt="Bubba the AI"
-          className="w-16 h-16 object-cover rounded"
-        /> Bubba's Login Chat</h2>
+        <img src="/assets/images/emotions/default.jpg" alt="Bubba AI" className="w-12 h-12 object-cover rounded" />
+        Bubba's Login
+      </h2>
       {error && <p className="text-red-500 mb-2">⚠️ {error}</p>}
       <form onSubmit={handleNext} className="space-y-4">
         {step === 0 && (
           <>
-            <p>Hi there! I'm Bubba 🐾 Can I have your email, please?</p>
-            <input
-              type="email"
-              placeholder="Your email..."
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border rounded"
-              required
-            />
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-              Next →
-            </button>
+            <p>What's your email?</p>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="border p-2 rounded w-full" />
           </>
         )}
         {step === 1 && (
           <>
-            <p>Thanks! Now, what’s the secret password to our clubhouse?</p>
-            <input
-              type="password"
-              placeholder="Your password..."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-2 border rounded"
-              required
-            />
-            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-              Let Me In 🐾
-            </button>
+            <p>Your password?</p>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="border p-2 rounded w-full" />
           </>
         )}
+
+        <div className="flex gap-4">
+          {step > 0 && (
+            <button type="button" onClick={handleBack} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">
+              ← Back
+            </button>
+          )}
+          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            {step === 1 ? "Login →" : "Next →"}
+          </button>
+        </div>
       </form>
     </div>
   );

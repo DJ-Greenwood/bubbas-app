@@ -1,12 +1,26 @@
-import { getFunctions, httpsCallable } from "firebase/functions";
+// src/utils/firebaseChatService.ts
+'use client';
 
-// 🔐 Firebase Callable Function
-const functions = getFunctions();
+import { httpsCallable } from "firebase/functions";
+import { functions } from './firebaseClient'; // 👈 correct initialized Firebase
 const callOpenAI = httpsCallable(functions, "callOpenAI");
 
+// Structure of the expected return from callOpenAI
+interface OpenAIUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface OpenAIResponse {
+  reply: string;
+  usage: OpenAIUsage;
+}
+
+// 🧠 Chat service to manage conversation history and interactions
 let conversationHistory: { role: string; content: string }[] = [];
 
-const openai_model = process.env.NEXT_OPENAI_MODEL || "gpt-4o"; // fallback model
+const openai_model = process.env.NEXT_PUBLIC_OPENAI_MODEL || "gpt-4o"; // Corrected to NEXT_PUBLIC_
 
 // 🔄 Reset the conversation history with a system prompt
 const resetConversation = (systemPrompt: string) => {
@@ -15,7 +29,7 @@ const resetConversation = (systemPrompt: string) => {
 };
 
 // 💬 Continue conversation with context via Firebase Function
-const askQuestion = async (question: string): Promise<string> => {
+const askQuestion = async (question: string): Promise<OpenAIResponse> => {
   console.log("[askQuestion] Received question:", question);
   conversationHistory.push({ role: "user", content: question });
 
@@ -27,11 +41,15 @@ const askQuestion = async (question: string): Promise<string> => {
       maxTokens: 1000,
     });
 
-    const assistantReply = (response.data as { reply: string })?.reply || "No response generated";
-    console.log("[askQuestion] Received response from Firebase Callable Function:", assistantReply);
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "No response generated";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[askQuestion] Received response:", assistantReply, "Tokens:", usage);
 
     conversationHistory.push({ role: "assistant", content: assistantReply });
-    return assistantReply;
+
+    return { reply: assistantReply, usage };
   } catch (error) {
     console.error("[askQuestion] Error while calling Firebase Callable Function:", error);
     throw error;
@@ -39,7 +57,7 @@ const askQuestion = async (question: string): Promise<string> => {
 };
 
 // ✨ One-off message via Firebase Function
-const generateResponse = async (prompt: string): Promise<string> => {
+const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
   console.log("[generateResponse] Received prompt:", prompt);
 
   try {
@@ -50,10 +68,13 @@ const generateResponse = async (prompt: string): Promise<string> => {
       maxTokens: 1000,
     });
 
-    const data = response.data as { reply: string };
-    console.log("[generateResponse] Received response from Firebase Callable Function:", data.reply);
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "No response generated";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-    return data.reply || "No response generated";
+    console.log("[generateResponse] Received response:", assistantReply, "Tokens:", usage);
+
+    return { reply: assistantReply, usage };
   } catch (error) {
     console.error("[generateResponse] Error while calling Firebase Callable Function:", error);
     throw error;
@@ -76,7 +97,7 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
   `.trim();
 
   console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
-  resetConversation(emotionalPrompt);
+  
 };
 
 const firebaseChatService = {

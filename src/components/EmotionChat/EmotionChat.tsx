@@ -1,17 +1,16 @@
-// src/app/emotion/EmotionChat.tsx
 'use client';
 
 import React, { useState, useEffect } from "react";
 import chatService from '../../utils/firebaseChatService';
-import { functions, db, auth } from '../../utils/firebaseClient';
-import { httpsCallable } from "firebase/functions";
-import { collection, getDocs } from "firebase/firestore";
-import { encryptData, decryptData } from '../../utils/encryption';
+import { encryptData, decryptField } from '../../utils/encryption';
+import { auth, db } from '../../utils/firebaseClient';
+import { collection, getDocs } from 'firebase/firestore';
 import EmotionIcon, { Emotion } from '../../components/emotion/EmotionIcon';
 import { detectEmotion } from '../../components/emotion/EmotionDetector';
 import { parseFirestoreDate } from '../../utils/parseDate';
 import { JournalEntry } from '@/types/JournalEntry';
-
+import { saveJournalEntry, loadJournalEntries } from '../../utils/emotionChatService';
+import { setUserUID } from '@/utils/encryption';
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -22,13 +21,23 @@ const EmotionChat = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [passPhrase, setPassPhrase] = useState<string>("");
 
-  const saveJournalEntry = httpsCallable(functions, "saveJournalEntry");
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      setUserUID(user.uid);
+    }
+  }, []);
 
   useEffect(() => {
     chatService.startEmotionalSupportSession();
     fetchPassPhrase();
-    loadJournalEntries();
   }, []);
+
+  useEffect(() => {
+    if (passPhrase) {
+      loadAndDecryptJournalEntries();
+    }
+  }, [passPhrase]);
 
   const fetchPassPhrase = async () => {
     const user = auth.currentUser;
@@ -48,28 +57,34 @@ const EmotionChat = () => {
     }
   };
 
-  const loadJournalEntries = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+  const loadAndDecryptJournalEntries = async () => {
+    try {
+      const loadedEntries = (await loadJournalEntries()) ?? [];
+      const decryptedEntries: JournalEntry[] = loadedEntries.map((entry) => {
+        const decryptedUserText = entry.encryptedUserText
+          ? decryptField(entry.encryptedUserText, passPhrase)
+          : entry.userText || "[Missing]";
+        const decryptedBubbaReply = entry.encryptedBubbaReply
+          ? decryptField(entry.encryptedBubbaReply, passPhrase)
+          : entry.bubbaReply || "[Missing]";
 
-    const ref = collection(db, "journals", user.uid, "entries");
-    const snapshot = await getDocs(ref);
-    const entries: JournalEntry[] = [];
+        return {
+          version: entry.version || 1,
+          userText: decryptedUserText,
+          bubbaReply: decryptedBubbaReply,
+          emotion: entry.emotion,
+          timestamp: entry.timestamp,
+          deleted: entry.deleted ?? false,
+          promptToken: entry.promptToken ?? 0,
+          completionToken: entry.completionToken ?? 0,
+          totalToken: entry.totalToken ?? 0,
+        };
+      });
 
-    snapshot.forEach(doc => {
-      try {
-        const rawData = doc.data() as any;
-        const decrypted = decryptData(rawData.encryptedData, passPhrase) as JournalEntry;
-        if (decrypted) {
-          entries.push({ ...decrypted, emotion: rawData.emotion, timestamp: rawData.timestamp });
-        }
-      } catch (err) {
-        console.warn("❌ Failed to decrypt journal entry", err);
-        setResponse("Failed to load journal entries. Please try again later.");
-      }
-    });
-
-    setJournalEntries(entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      setJournalEntries(decryptedEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+    } catch (error) {
+      console.error("Failed to decrypt journal entries:", error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -84,39 +99,52 @@ const EmotionChat = () => {
       const detectedEmotion = await detectEmotion(userInput);
       setEmotion(detectedEmotion);
 
-      const reply = await chatService.askQuestion(userInput);
+      const { reply, usage } = await chatService.askQuestion(userInput);
       setResponse(reply);
 
-      const newEntry: JournalEntry = {
-        version: 1,
-        userText: userInput,
-        bubbaReply: reply,
-        emotion: detectedEmotion,
-        timestamp: new Date().toISOString(),
-        deleted: false,
-      };
+      const now = new Date();
+      const timestamp = now.toISOString();
 
-      const encryptedEntry = encryptData({
-        userText: newEntry.userText,
-        bubbaReply: newEntry.bubbaReply,
-      }, passPhrase);
+      // 🔐 Encrypt only userText and bubbaReply
+      const encryptedUserText = encryptData({ userText: userInput }, passPhrase);
+      const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
 
       await saveJournalEntry({
-        entryData: encryptedEntry,
-        emotion: newEntry.emotion,
-        timestamp: newEntry.timestamp,
-        deleted: false,
         version: 1,
-        promptToken: newEntry.promptToken, // optional, for tracking prompt tokens
-        completionToken: newEntry.completionToken, // optional, for tracking completion tokens
-        totalToken: newEntry.totalToken, // optional, for tracking total tokens
-        usage: { promptTokens: newEntry.promptToken, completionTokens: newEntry.completionToken, totalTokens: newEntry.totalToken, }, // optional, for tracking token usage
+        createdAt: now.toISOString(),
+        timestamp,
+        emotion: detectedEmotion,
+        encryptedUserText,
+        encryptedBubbaReply,
+        deleted: false,
+        promptToken: usage.promptTokens,
+        completionToken: usage.completionTokens,
+        totalToken: usage.totalTokens,
+        usage: {
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.totalTokens,
+        },
       });
 
-      setJournalEntries(prev => [newEntry, ...prev]);
+      setJournalEntries(prev => [
+        {
+          version: 1,
+          userText: userInput,
+          bubbaReply: reply,
+          emotion: detectedEmotion,
+          timestamp,
+          deleted: false,
+          promptToken: usage.promptTokens,
+          completionToken: usage.completionTokens,
+          totalToken: usage.totalTokens,
+        },
+        ...prev
+      ]);
+
     } catch (error) {
-      console.error("Error:", error);
-      setResponse(`Oops! Something went wrong. Bubba is trying again. Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("Error submitting journal entry:", error);
+      setResponse("Oops! Something went wrong. Bubbas is trying again.");
     } finally {
       setIsLoading(false);
       setUserInput("");
@@ -130,16 +158,9 @@ const EmotionChat = () => {
   return (
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       <h2 className="flex items-center gap-2">
-        <img
-          src='/assets/images/emotions/default.jpg'
-          alt="Bubba the AI"
-          className="w-16 h-16 object-cover rounded"
-        />
+        <img src='/assets/images/emotions/default.jpg' alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
         Bubba the AI Emotional Chat
       </h2>
-      <p className="text-gray-600">
-        Let Yorkie help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
-      </p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <textarea
@@ -176,33 +197,32 @@ const EmotionChat = () => {
           <h3 className="text-lg font-semibold mb-4">📝 Your Emotional Journal</h3>
           <div className="space-y-4">
             {journalEntries.map((entry, index) => (
-                <div
+              <div
                 key={index}
                 className="bg-white bg-opacity-30 rounded shadow-md cursor-pointer p-4 relative"
                 onClick={() => toggleExpand(index)}
-                >
+              >
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-800 font-semibold truncate max-w-xs">
-                  {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
+                    {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
                   </div>
                   <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
-                  <EmotionIcon emotion={entry.emotion} size={24} />
+                    <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
+                    <EmotionIcon emotion={entry.emotion} size={24} />
                   </div>
                 </div>
+
                 {expandedIndex === index && (
                   <div className="mt-3 text-sm text-gray-700 space-y-2">
-                  <p><strong>You:</strong> {entry.userText}</p>
-                  <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
-                  <p><strong>Emotion:</strong> {entry.emotion}</p>
+                    <p><strong>You:</strong> {entry.userText}</p>
+                    <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
+                    <p><strong>Emotion:</strong> {entry.emotion}</p>
+                    <div className="text-xs text-right text-gray-500 mt-2">
+                      📜 Tokens Used: Prompt {entry.promptToken} | Completion {entry.completionToken} | Total {entry.totalToken}
+                    </div>
                   </div>
                 )}
-                <div className="absolute bottom-2 right-2 text-xs text-gray-500">
-                  <p>Prompt Tokens: {entry.promptToken || "N/A"}</p>
-                  <p>Completion Tokens: {entry.completionToken || "N/A"}</p>
-                  <p>Total Tokens: {entry.totalToken || "N/A"}</p>
-                </div>
-                </div>
+              </div>
             ))}
           </div>
         </div>

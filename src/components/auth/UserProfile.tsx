@@ -1,9 +1,12 @@
-// src/app/UserProfile.tsx
+// src/app/UserProfilePage.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../../utils/firebaseClient';
+import {
+  fetchUserProfile,
+  updateUserProfile,
+  UserProfileData
+} from '../../utils/userProfileService';
 
 // Import modular cards
 import PersonalInfoCard from './cards/PersonalInfoCard';
@@ -15,49 +18,23 @@ import MemoryFeatureCard from './cards/MemoryFeatureCard';
 import TTSFeatureCard from './cards/TTSFeatureCard';
 import STTFeatureCard from './cards/STTFeatureCard';
 
-// UserProfileData Interface
-export interface UserProfileData {
-  email: string;
-  username?: string;
-  phoneNumber?: string;
-  createdAt: string;
-  passPhrase: string;
-  agreedTo: { terms: string; privacy: string; ethics: string; };
-  preferences: { tone: string; theme: string; startPage: string; localStorageEnabled?: boolean; };
-  usage: { tokens: { lifetime: number; monthly: any; }; voiceChars: { tts: any; stt: any; }; };
-  subscription: { tier: string; activationDate: string; expirationDate: string; };
-  features: { memory: boolean; tts: boolean; stt: boolean; emotionalInsights: boolean; };
-}
-
 const UserProfilePage = () => {
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        setUserProfile(userSnap.data() as UserProfileData);
-      }
+    const loadProfile = async () => {
+      const profile = await fetchUserProfile();
+      setUserProfile(profile);
       setLoading(false);
     };
 
-    fetchUserProfile();
+    loadProfile();
   }, []);
 
   const handleProfileUpdate = async (updates: Partial<UserProfileData>) => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    const userRef = doc(db, 'users', currentUser.uid);
-    await updateDoc(userRef, updates);
-
-    setUserProfile(prev => prev ? ({ ...prev, ...updates }) : prev);
+    await updateUserProfile(updates);
+    setUserProfile(prev => prev ? { ...prev, ...updates } : prev);
   };
 
   if (loading) return <div className="text-center mt-20">Loading profile...</div>;
@@ -74,7 +51,6 @@ const UserProfilePage = () => {
           <PreferencesCard user={userProfile} onUpdate={handleProfileUpdate} />
           <SubscriptionCard user={userProfile} />
 
-          {/* Feature Cards based on user features */}
           {userProfile.features.emotionalInsights && <EmotionalInsightsCard user={userProfile} />}
           {userProfile.features.memory && <MemoryFeatureCard user={userProfile} />}
           {userProfile.features.tts && <TTSFeatureCard user={userProfile} />}

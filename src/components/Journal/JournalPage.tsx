@@ -3,20 +3,59 @@ import React, { useEffect, useState } from 'react';
 import { loadJournalEntries, editJournalEntry, softDeleteJournalEntry } from './journalServices';
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
+import { decryptField, encryptField } from '@/utils/encryption';
+import { auth, db } from '@/utils/firebaseClient';
+import { collection, getDocs } from 'firebase/firestore';
+import { setUserUID } from '@/utils/encryption';
 
 const JournalPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [passPhrase, setPassPhrase] = useState<string>("");
 
   useEffect(() => {
-    const fetchEntries = async () => {
-      const loaded = await loadJournalEntries('active');
-      setEntries(loaded.entries);
-    };
-    fetchEntries();
+    const user = auth.currentUser;
+    if (user) {
+      setUserUID(user.uid);
+    }
   }, []);
 
+  useEffect(() => {
+    const fetchPassPhrase = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
+      const snapshot = await getDocs(userPreferencesRef);
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.passPhrase) {
+          setPassPhrase(decryptField(data.passPhrase, passPhrase));
+        }
+      });
+    };
+
+    fetchPassPhrase();
+  }, []);
+
+  useEffect(() => {
+    if (passPhrase) {
+      fetchEntries();
+    }
+  }, [passPhrase]);
+
+  const fetchEntries = async () => {
+    const loaded = await loadJournalEntries('active');
+    const decrypted = loaded.entries.map(entry => ({
+      ...entry,
+      userText: decryptField(entry.userText, passPhrase),
+    }));
+    setEntries(decrypted);
+  };
+
   const handleEdit = async (timestamp: string, newText: string) => {
-    await editJournalEntry(timestamp, { userText: newText }, 'passphrase');
+    const encryptedUserText = encryptField(newText, passPhrase);
+    
+    await editJournalEntry(timestamp, { userText: encryptedUserText }, passPhrase);
     setEntries(prev => prev.map(e => e.timestamp === timestamp ? { ...e, userText: newText } : e));
   };
 
