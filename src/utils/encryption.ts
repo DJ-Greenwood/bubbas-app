@@ -27,11 +27,32 @@ export const encryptData = (data: object, passPhrase: string): string => {
 };
 
 // Decrypt a full data object
-export const decryptData = (encryptedData: string, passPhrase: string): any => {
-  const key = getKey(passPhrase);
-  const bytes = CryptoJS.AES.decrypt(encryptedData, key);
-  const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-  return JSON.parse(decrypted);
+export const decryptData = (encryptedData: string, key: string): string => {
+  try {
+    if (!encryptedData || typeof encryptedData !== 'string') {
+      console.warn("⚠️ No data to decrypt or invalid type");
+      return "[Invalid]";
+    }
+
+    // Optional: Validate if it's probably encrypted (quick basic check)
+    if (!encryptedData.includes("Salted__")) {
+      console.warn("⚠️ Data does not look encrypted, skipping decryption");
+      return encryptedData;
+    }
+
+    const bytes = CryptoJS.AES.decrypt(encryptedData, key);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+
+    if (!decrypted) {
+      console.warn("⚠️ Decryption failed, empty result");
+      return "[Decryption Error]";
+    }
+
+    return decrypted;
+  } catch (error) {
+    console.error("❌ Decryption failed:", error);
+    return "[Error]";
+  }
 };
 
 // Encrypt a single field

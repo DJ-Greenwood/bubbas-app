@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { UserProfileData } from '../UserProfile';
+import { UserProfileData } from '../../../utils/userProfileService';
 
 const PreferencesCard: React.FC<{ user: UserProfileData; onUpdate: (updates: Partial<UserProfileData>) => void }> = ({ user, onUpdate }) => {
 

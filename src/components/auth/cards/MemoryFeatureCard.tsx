@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { UserProfileData } from '../UserProfile';
+import { UserProfileData } from '../../../utils/userProfileService';
 
 const MemoryFeatureCard: React.FC<{ user: UserProfileData }> = ({ user }) => (
   <div className="bg-white rounded-lg shadow-md p-6">

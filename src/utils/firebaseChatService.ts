@@ -3,6 +3,8 @@
 
 import { httpsCallable } from "firebase/functions";
 import { functions } from './firebaseClient'; // 👈 correct initialized Firebase
+import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import detectEmotion function
+import { Emotion } from "@/types/JournalEntry";
 const callOpenAI = httpsCallable(functions, "callOpenAI");
 
 // Structure of the expected return from callOpenAI
@@ -81,8 +83,36 @@ const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
   }
 };
 
-// 🧸 Start emotional support session with a custom system prompt
-const startEmotionalSupportSession = () => {
+// 💬 Continue conversation with context via Firebase Function
+const startEmotionalChat = async (question: string): Promise<OpenAIResponse> => {
+  console.log("[startEmotionalChat] Received question:", question);
+  conversationHistory.push({ role: "user", content: question });
+
+  try {
+    console.log("[startEmotionalChat] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
+    const response = await callOpenAI({
+      messages: conversationHistory,
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "No response generated";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[startEmotionalChat] Received response:", assistantReply, "Tokens:", usage);
+
+    conversationHistory.push({ role: "assistant", content: assistantReply });
+
+    return { reply: assistantReply, usage };
+  } catch (error) {
+    console.error("[startEmotionalChat] Error while calling Firebase Callable Function:", error);
+    throw error;
+  }
+};
+
+// 🧸 Start emotional support session with a custom system prompt and return Bubba's first message
+const startEmotionalSupportSession = async (): Promise<{ reply: string; usage: OpenAIUsage; emotion: Emotion }> => {
   const emotionalPrompt = `
 You are Bubbas, a compassionate AI companion. Your goal is to help the user reflect on their day, process emotions, and feel supported.
 Ask thoughtful, open-ended questions like:
@@ -97,7 +127,34 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
   `.trim();
 
   console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
-  
+
+  try {
+    // 💬 Start the session with system prompt
+    conversationHistory.length = 0; // Reset history
+    conversationHistory.push({ role: "system", content: emotionalPrompt });
+
+    const response = await callOpenAI({
+      messages: conversationHistory,
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "Hi! I'm here whenever you're ready to talk.";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[startEmotionalSupportSession] Bubba's first reply:", assistantReply);
+
+    conversationHistory.push({ role: "assistant", content: assistantReply });
+
+    // 🧠 Detect Bubba's emotion based on his reply
+    const emotion = await detectEmotion(assistantReply);
+
+    return { reply: assistantReply, usage, emotion };
+  } catch (error) {
+    console.error("[startEmotionalSupportSession] Error starting session:", error);
+    throw error;
+  }
 };
 
 const firebaseChatService = {
@@ -105,6 +162,7 @@ const firebaseChatService = {
   askQuestion,
   generateResponse,
   startEmotionalSupportSession,
+  startEmotionalChat,
 };
 
 export default firebaseChatService;

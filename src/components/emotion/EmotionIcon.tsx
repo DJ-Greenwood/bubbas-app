@@ -2,9 +2,18 @@
 import React from 'react';
 
 export type Emotion =
-  | "joyful" | "peaceful" | "tired" | "nervous"
-  | "frustrated" | "grateful" | "hopeful" | "isolated"
-  | "confused" | "reflective" | "sad" | "angry";
+  | "joyful" 
+  | "peaceful" 
+  | "tired" 
+  | "nervous"
+  | "frustrated" 
+  | "grateful" 
+  | "hopeful" 
+  | "isolated"
+  | "confused" 
+  | "reflective" 
+  | "sad" 
+  | "angry";
 
 export interface EmotionIconProps {
   emotion: Emotion;

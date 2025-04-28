@@ -4,9 +4,9 @@ import { loadJournalEntries, editJournalEntry, softDeleteJournalEntry } from './
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { decryptField, encryptField } from '@/utils/encryption';
-import { auth, db } from '@/utils/firebaseClient';
-import { collection, getDocs } from 'firebase/firestore';
+import { fetchPassPhrase } from '@/utils/passPhraseService';
 import { setUserUID } from '@/utils/encryption';
+import { auth } from '@/utils/firebaseClient';
 
 const JournalPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -17,24 +17,14 @@ const JournalPage = () => {
     if (user) {
       setUserUID(user.uid);
     }
-  }, []);
 
-  useEffect(() => {
-    const fetchPassPhrase = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
-      const snapshot = await getDocs(userPreferencesRef);
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.passPhrase) {
-          setPassPhrase(decryptField(data.passPhrase, passPhrase));
-        }
-      });
+    const init = async () => {
+      const phrase = await fetchPassPhrase();
+      if (phrase) {
+        setPassPhrase(phrase);
+      }
     };
-
-    fetchPassPhrase();
+    init();
   }, []);
 
   useEffect(() => {
@@ -47,14 +37,14 @@ const JournalPage = () => {
     const loaded = await loadJournalEntries('active');
     const decrypted = loaded.entries.map(entry => ({
       ...entry,
-      userText: decryptField(entry.userText, passPhrase),
+      userText: decryptField(entry.userText || '', passPhrase),
+      bubbaReply: decryptField(entry.bubbaReply || '', passPhrase),
     }));
     setEntries(decrypted);
   };
 
   const handleEdit = async (timestamp: string, newText: string) => {
     const encryptedUserText = encryptField(newText, passPhrase);
-    
     await editJournalEntry(timestamp, { userText: encryptedUserText }, passPhrase);
     setEntries(prev => prev.map(e => e.timestamp === timestamp ? { ...e, userText: newText } : e));
   };

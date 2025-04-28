@@ -11,6 +11,8 @@ import { parseFirestoreDate } from '../../utils/parseDate';
 import { JournalEntry } from '@/types/JournalEntry';
 import { saveJournalEntry, loadJournalEntries } from '../../utils/emotionChatService';
 import { setUserUID } from '@/utils/encryption';
+import { fetchPassPhrase } from '../../utils/passPhraseService';
+
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -29,7 +31,7 @@ const EmotionChat = () => {
   }, []);
 
   useEffect(() => {
-    chatService.startEmotionalSupportSession();
+    startSession();
     fetchPassPhrase();
   }, []);
 
@@ -39,24 +41,67 @@ const EmotionChat = () => {
     }
   }, [passPhrase]);
 
-  const fetchPassPhrase = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
+  const startSession = async () => {
     try {
-      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
-      const snapshot = await getDocs(userPreferencesRef);
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.passPhrase) {
-          setPassPhrase(data.passPhrase);
-        }
+      const { reply, usage, emotion } = await chatService.startEmotionalSupportSession();
+      setResponse(reply);
+      setEmotion(emotion);
+
+      const now = new Date();
+      const timestamp = now.toISOString();
+
+      // Encrypt Bubba's welcome reply
+      const encryptedUserText = encryptData({ userText: "(Bubba's Welcome)" }, passPhrase);
+      const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
+
+      await saveJournalEntry({
+        version: 1,
+        createdAt: now.toISOString(),
+        timestamp,
+        emotion: emotion,
+        encryptedUserText,
+        encryptedBubbaReply,
+        deleted: false,
+        promptToken: usage.promptTokens,
+        completionToken: usage.completionTokens,
+        totalToken: usage.totalTokens,
+        usage: {
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.totalTokens,
+        },
       });
+
+      setJournalEntries(prev => [
+        {
+          version: 1,
+          userText: "(Bubba's Welcome)",
+          bubbaReply: reply,
+          emotion: emotion,
+          timestamp,
+          deleted: false,
+          promptToken: usage.promptTokens,
+          completionToken: usage.completionTokens,
+          totalToken: usage.totalTokens,
+        },
+        ...prev
+      ]);
+
     } catch (error) {
-      console.error("Failed to fetch passphrase:", error);
+      console.error("Failed to start emotional support session:", error);
     }
   };
 
+  useEffect(() => {
+    const init = async () => {
+      const phrase = await fetchPassPhrase();
+      if (phrase) {
+        setPassPhrase(phrase);
+      }
+    };
+    init();
+  }, []);
+  
   const loadAndDecryptJournalEntries = async () => {
     try {
       const loadedEntries = (await loadJournalEntries()) ?? [];
@@ -81,7 +126,12 @@ const EmotionChat = () => {
         };
       });
 
-      setJournalEntries(decryptedEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      // Filter out invalid entries
+      const validEntries = decryptedEntries.filter(entry => 
+        entry.userText !== "[Missing]" && entry.bubbaReply !== "[Missing]"
+      );
+
+      setJournalEntries(validEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     } catch (error) {
       console.error("Failed to decrypt journal entries:", error);
     }
@@ -105,7 +155,6 @@ const EmotionChat = () => {
       const now = new Date();
       const timestamp = now.toISOString();
 
-      // 🔐 Encrypt only userText and bubbaReply
       const encryptedUserText = encryptData({ userText: userInput }, passPhrase);
       const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
 
@@ -161,6 +210,9 @@ const EmotionChat = () => {
         <img src='/assets/images/emotions/default.jpg' alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
         Bubba the AI Emotional Chat
       </h2>
+      <p className="text-gray-600">
+        Let Bubba help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
+      </p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <textarea
@@ -182,7 +234,7 @@ const EmotionChat = () => {
 
       {emotion && (
         <div className="emotion-display mt-4 flex items-center gap-2">
-          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion} size={40} />
+          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion} size={64} />
         </div>
       )}
 
@@ -208,7 +260,7 @@ const EmotionChat = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
-                    <EmotionIcon emotion={entry.emotion} size={24} />
+                    <EmotionIcon emotion={entry.emotion} size={64} />
                   </div>
                 </div>
 
@@ -216,7 +268,9 @@ const EmotionChat = () => {
                   <div className="mt-3 text-sm text-gray-700 space-y-2">
                     <p><strong>You:</strong> {entry.userText}</p>
                     <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
-                    <p><strong>Emotion:</strong> {entry.emotion}</p>
+                    <div className="flex items-center gap-2">
+                      <strong>Emotion:</strong> <EmotionIcon emotion={entry.emotion} size={64} />
+                    </div>
                     <div className="text-xs text-right text-gray-500 mt-2">
                       📜 Tokens Used: Prompt {entry.promptToken} | Completion {entry.completionToken} | Total {entry.totalToken}
                     </div>

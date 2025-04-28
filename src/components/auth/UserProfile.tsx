@@ -17,10 +17,13 @@ import EmotionalInsightsCard from './cards/EmotionalInsightsCard';
 import MemoryFeatureCard from './cards/MemoryFeatureCard';
 import TTSFeatureCard from './cards/TTSFeatureCard';
 import STTFeatureCard from './cards/STTFeatureCard';
+import { auth } from '../../utils/firebaseClient';
+import { setUserUID } from '@/utils/encryption';
 
 const UserProfilePage = () => {
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -28,7 +31,10 @@ const UserProfilePage = () => {
       setUserProfile(profile);
       setLoading(false);
     };
-
+    const user = auth.currentUser;
+    if (user) {
+      setUserUID(user.uid);
+    }
     loadProfile();
   }, []);
 

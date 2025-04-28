@@ -4,29 +4,21 @@ import { loadJournalEntries, recoverJournalEntry, hardDeleteJournalEntry } from 
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { decryptField } from '@/utils/encryption';
-import { auth, db } from '@/utils/firebaseClient';
-import { collection, getDocs } from 'firebase/firestore';
+import { fetchPassPhrase } from '@/utils/passPhraseService';
+import { auth } from '@/utils/firebaseClient';
 
 const JournalTrashPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [passPhrase, setPassPhrase] = useState<string>("");
 
   useEffect(() => {
-    const fetchPassPhrase = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userPreferencesRef = collection(db, "users", user.uid, "preferences");
-      const snapshot = await getDocs(userPreferencesRef);
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.passPhrase) {
-          setPassPhrase(data.passPhrase);
-        }
-      });
+    const init = async () => {
+      const phrase = await fetchPassPhrase();
+      if (phrase) {
+        setPassPhrase(phrase);
+      }
     };
-
-    fetchPassPhrase();
+    init();
   }, []);
 
   useEffect(() => {
@@ -39,7 +31,8 @@ const JournalTrashPage = () => {
     const loaded = await loadJournalEntries('trash');
     const decrypted = loaded.entries.map(entry => ({
       ...entry,
-      userText: decryptField(entry.userText, passPhrase),
+      userText: decryptField(entry.userText || '', passPhrase),
+      bubbaReply: decryptField(entry.bubbaReply || '', passPhrase),
     }));
     setEntries(decrypted);
   };

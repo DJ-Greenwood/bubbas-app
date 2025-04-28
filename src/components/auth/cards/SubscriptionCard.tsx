@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { UserProfileData } from '../UserProfile';
+import { UserProfileData } from '../../../utils/userProfileService';
 import { parseFirestoreDate } from '../../../utils/parseDate';
 
 const SubscriptionCard: React.FC<{ user: UserProfileData }> = ({ user }) => (
