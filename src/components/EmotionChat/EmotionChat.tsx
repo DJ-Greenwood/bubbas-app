@@ -10,9 +10,8 @@ import { detectEmotion } from '../../components/emotion/EmotionDetector';
 import { parseFirestoreDate } from '../../utils/parseDate';
 import { JournalEntry } from '@/types/JournalEntry';
 import { saveJournalEntry, loadJournalEntries } from '../../utils/emotionChatService';
+import { fetchPassPhrase } from '../../utils/passPhraseService'; // ✅ Correct import
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '../../utils/passPhraseService';
-
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -23,20 +22,26 @@ const EmotionChat = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [passPhrase, setPassPhrase] = useState<string>("");
 
+  // ✅ Fetch passPhrase only once at startup
   useEffect(() => {
-    const user = auth.currentUser;
-    if (user) {
-      setUserUID(user.uid);
-    }
+    const init = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        setUserUID(user.uid);
+      }
+
+      const phrase = await fetchPassPhrase();
+      if (phrase) {
+        setPassPhrase(phrase);
+      }
+    };
+    init();
   }, []);
 
-  useEffect(() => {
-    startSession();
-    fetchPassPhrase();
-  }, []);
-
+  // ✅ Only after passPhrase is ready
   useEffect(() => {
     if (passPhrase) {
+      startSession();
       loadAndDecryptJournalEntries();
     }
   }, [passPhrase]);
@@ -50,7 +55,6 @@ const EmotionChat = () => {
       const now = new Date();
       const timestamp = now.toISOString();
 
-      // Encrypt Bubba's welcome reply
       const encryptedUserText = encryptData({ userText: "(Bubba's Welcome)" }, passPhrase);
       const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
 
@@ -58,7 +62,7 @@ const EmotionChat = () => {
         version: 1,
         createdAt: now.toISOString(),
         timestamp,
-        emotion: emotion,
+        emotion,
         encryptedUserText,
         encryptedBubbaReply,
         deleted: false,
@@ -77,7 +81,7 @@ const EmotionChat = () => {
           version: 1,
           userText: "(Bubba's Welcome)",
           bubbaReply: reply,
-          emotion: emotion,
+          emotion,
           timestamp,
           deleted: false,
           promptToken: usage.promptTokens,
@@ -92,31 +96,44 @@ const EmotionChat = () => {
     }
   };
 
-  useEffect(() => {
-    const init = async () => {
-      const phrase = await fetchPassPhrase();
-      if (phrase) {
-        setPassPhrase(phrase);
-      }
-    };
-    init();
-  }, []);
-  
   const loadAndDecryptJournalEntries = async () => {
     try {
       const loadedEntries = (await loadJournalEntries()) ?? [];
+  
       const decryptedEntries: JournalEntry[] = loadedEntries.map((entry) => {
-        const decryptedUserText = entry.encryptedUserText
-          ? decryptField(entry.encryptedUserText, passPhrase)
-          : entry.userText || "[Missing]";
-        const decryptedBubbaReply = entry.encryptedBubbaReply
-          ? decryptField(entry.encryptedBubbaReply, passPhrase)
-          : entry.bubbaReply || "[Missing]";
-
+        let userText = "[Missing]";
+        let bubbaReply = "[Missing]";
+  
+        if (entry.encryptedUserText && typeof entry.encryptedUserText === 'string' && entry.encryptedUserText.length > 0) {
+          try {
+            const decryptedRaw = decryptField(entry.encryptedUserText, passPhrase);
+            const parsed = JSON.parse(decryptedRaw);
+            userText = parsed.userText || "[Unreadable]";
+          } catch (err) {
+            console.warn("Failed to decrypt/parse userText:", err);
+            userText = entry.userText || "[Unreadable]";
+          }
+        } else if (entry.userText) {
+          userText = entry.userText;
+        }
+  
+        if (entry.encryptedBubbaReply && typeof entry.encryptedBubbaReply === 'string' && entry.encryptedBubbaReply.length > 0) {
+          try {
+            const decryptedRaw = decryptField(entry.encryptedBubbaReply, passPhrase);
+            const parsed = JSON.parse(decryptedRaw);
+            bubbaReply = parsed.bubbaReply || "[Unreadable]";
+          } catch (err) {
+            console.warn("Failed to decrypt/parse bubbaReply:", err);
+            bubbaReply = entry.bubbaReply || "[Unreadable]";
+          }
+        } else if (entry.bubbaReply) {
+          bubbaReply = entry.bubbaReply;
+        }
+  
         return {
           version: entry.version || 1,
-          userText: decryptedUserText,
-          bubbaReply: decryptedBubbaReply,
+          userText,
+          bubbaReply,
           emotion: entry.emotion,
           timestamp: entry.timestamp,
           deleted: entry.deleted ?? false,
@@ -125,17 +142,18 @@ const EmotionChat = () => {
           totalToken: entry.totalToken ?? 0,
         };
       });
-
-      // Filter out invalid entries
-      const validEntries = decryptedEntries.filter(entry => 
+  
+      const validEntries = decryptedEntries.filter(entry =>
         entry.userText !== "[Missing]" && entry.bubbaReply !== "[Missing]"
       );
-
+  
       setJournalEntries(validEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     } catch (error) {
       console.error("Failed to decrypt journal entries:", error);
     }
   };
+  
+  
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -268,9 +286,7 @@ const EmotionChat = () => {
                   <div className="mt-3 text-sm text-gray-700 space-y-2">
                     <p><strong>You:</strong> {entry.userText}</p>
                     <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
-                    <div className="flex items-center gap-2">
-                      <strong>Emotion:</strong> <EmotionIcon emotion={entry.emotion} size={64} />
-                    </div>
+                    <p><strong>Emotion:</strong> {entry.emotion}</p>
                     <div className="text-xs text-right text-gray-500 mt-2">
                       📜 Tokens Used: Prompt {entry.promptToken} | Completion {entry.completionToken} | Total {entry.totalToken}
                     </div>

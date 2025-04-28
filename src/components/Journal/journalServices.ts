@@ -1,130 +1,78 @@
-import { db, auth } from '../../utils/firebaseClient';
-import { encryptData, decryptData } from '../../utils/encryption';
-import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { auth } from '@/utils/firebaseClient';
 import { JournalEntry } from '@/types/JournalEntry';
+import { encryptData } from '@/utils/encryption';
 
-const JOURNAL_ENCRYPTION_VERSION = 1;
+const db = getFirestore();
 
-// 1. Save journal entry (partial encryption)
-export const saveJournalEntry = async (entry: JournalEntry, passPhrase: string): Promise<void> => {
+// 🧹 Load journals
+export const loadJournalEntries = async (status: 'active' | 'trash') => {
   const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+  if (!user) throw new Error('User not authenticated');
 
-  const encryptedPayload = encryptData({
-    userText: entry.userText,
-    bubbaReply: entry.bubbaReply,
-  }, passPhrase);
-
-  const entryRef = doc(db, "journals", user.uid, "entries", entry.timestamp);
-  await setDoc(entryRef, {
-    encryptedData: encryptedPayload,
-    emotion: entry.emotion,
-    timestamp: entry.timestamp,
-    deleted: entry.deleted ?? false,
-    version: JOURNAL_ENCRYPTION_VERSION,
-  });
-};
-
-// 2. Load journal entries (partial decryption)
-export const loadJournalEntries = async (
-  passPhrase: string,
-  onlyDeleted = false,
-  pageSize = 20,
-  startAfterDoc?: any
-): Promise<{ entries: JournalEntry[]; lastDoc: any }> => {
-  const user = auth.currentUser;
-  if (!user) return { entries: [], lastDoc: null };
-
-  const ref = collection(db, "journals", user.uid, "entries");
-  let q = query(
-    ref,
-    where("deleted", "==", onlyDeleted),
-    orderBy("timestamp", "desc"),
-    limit(pageSize)
-  );
-
-  if (startAfterDoc) {
-    q = query(
-      ref,
-      where("deleted", "==", onlyDeleted),
-      orderBy("timestamp", "desc"),
-      startAfter(startAfterDoc),
-      limit(pageSize)
-    );
-  }
-
+  const journalRef = collection(db, 'journals', user.uid, 'entries');
+  const q = query(journalRef, where('deleted', '==', status === 'trash'));
   const snapshot = await getDocs(q);
-  const entries: JournalEntry[] = [];
 
-  snapshot.forEach(docSnap => {
-    try {
-      const docData = docSnap.data();
-      const encrypted = docData.encryptedData;
-      const decrypted = decryptData(encrypted, passPhrase) || {};
+  const entries = snapshot.docs.map(doc => ({
+    ...(doc.data() as any),
+    timestamp: doc.id,
+  })) as JournalEntry[];
 
-      const entry: JournalEntry = {
-        userText: decrypted.userText || "",
-        bubbaReply: decrypted.bubbaReply || "",
-        emotion: docData.emotion,
-        timestamp: docData.timestamp,
-        deleted: docData.deleted ?? false,
-        version: docData.version ?? 1,
-      };
+  return { entries };
+};
 
-      entries.push(entry);
-    } catch (error) {
-      console.error("Failed to decrypt journal entry:", error);
-    }
+// 🖊️ Save new edited journal as a new document
+export const saveEditedJournalEntry = async (
+  originalEntry: JournalEntry,
+  updatedUserText: string,
+  emotion: string,
+  passPhrase: string
+) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('User not authenticated');
+
+  const journalRef = collection(db, 'journals', user.uid, 'entries');
+
+  const now = new Date();
+  const timestamp = now.toISOString();
+
+  await addDoc(journalRef, {
+    createdAt: timestamp,
+    timestamp: timestamp,
+    deleted: false,
+    emotion: emotion,
+    encryptedUserText: encryptData({ userText: updatedUserText }, passPhrase),
+    encryptedBubbaReply: encryptData({ bubbaReply: originalEntry.bubbaReply }, passPhrase),
+    promptToken: originalEntry.promptToken ?? 0,
+    completionToken: originalEntry.completionToken ?? 0,
+    totalToken: originalEntry.totalToken ?? 0,
   });
-
-  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-  return { entries, lastDoc };
 };
 
-// 3. Edit (only updates userText and/or bubbaReply)
-export const editJournalEntry = async (timestamp: string, updates: Partial<Pick<JournalEntry, "userText" | "bubbaReply">>, passPhrase: string): Promise<void> => {
+// 🗑️ Soft-delete an entry
+export const softDeleteJournalEntry = async (timestamp: string) => {
   const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+  if (!user) throw new Error('User not authenticated');
 
-  const entryRef = doc(db, "journals", user.uid, "entries", timestamp);
-
-  const docSnap = await getDoc(entryRef);
-  if (!docSnap.exists()) throw new Error("Entry not found.");
-
-  const docData = docSnap.data();
-  const decrypted = decryptData(docData.encryptedData, passPhrase) || {};
-
-  const newEncrypted = encryptData({
-    userText: updates.userText ?? decrypted.userText,
-    bubbaReply: updates.bubbaReply ?? decrypted.bubbaReply,
-  }, passPhrase);
-
-  await updateDoc(entryRef, { encryptedData: newEncrypted });
-};
-
-// 4. Soft delete
-export const softDeleteJournalEntry = async (timestamp: string): Promise<void> => {
-  const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
-
-  const entryRef = doc(db, "journals", user.uid, "entries", timestamp);
+  const entryRef = doc(db, 'journals', user.uid, 'entries', timestamp);
   await updateDoc(entryRef, { deleted: true });
 };
 
-// 5. Recover journal entry
-export const recoverJournalEntry = async (timestamp: string): Promise<void> => {
+// ♻️ Recover (un-delete) a journal
+export const recoverJournalEntry = async (timestamp: string) => {
   const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+  if (!user) throw new Error('User not authenticated');
 
-  const entryRef = doc(db, "journals", user.uid, "entries", timestamp);
+  const entryRef = doc(db, 'journals', user.uid, 'entries', timestamp);
   await updateDoc(entryRef, { deleted: false });
 };
 
-// 6. Hard delete
-export const hardDeleteJournalEntry = async (timestamp: string): Promise<void> => {
+// 🧹 Hard delete forever
+export const hardDeleteJournalEntry = async (timestamp: string) => {
   const user = auth.currentUser;
-  if (!user) throw new Error("User not authenticated");
+  if (!user) throw new Error('User not authenticated');
 
-  const entryRef = doc(db, "journals", user.uid, "entries", timestamp);
+  const entryRef = doc(db, 'journals', user.uid, 'entries', timestamp);
   await deleteDoc(entryRef);
 };
