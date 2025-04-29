@@ -43,7 +43,7 @@ export const saveEditedJournalEntry = async (
     deleted: false,
     emotion: emotion,
     encryptedUserText: encryptData({ userText: updatedUserText }, passPhrase),
-    encryptedBubbaReply: encryptData({ bubbaReply: originalEntry.bubbaReply }, passPhrase),
+    encryptedBubbaReply: encryptData({ bubbaReply: originalEntry.encryptedBubbaReply }, passPhrase),
     promptToken: originalEntry.promptToken ?? 0,
     completionToken: originalEntry.completionToken ?? 0,
     totalToken: originalEntry.totalToken ?? 0,
@@ -76,3 +76,18 @@ export const hardDeleteJournalEntry = async (timestamp: string) => {
   const entryRef = doc(db, 'journals', user.uid, 'entries', timestamp);
   await deleteDoc(entryRef);
 };
+
+
+// New function
+export async function emptyTrashcan() {
+  const ref = collection(db, 'journals');
+  const trashQuery = query(ref, where('deleted', '==', true));
+
+  const snapshot = await getDocs(trashQuery);
+
+  const deletePromises = snapshot.docs.map(docSnapshot =>
+    deleteDoc(doc(db, 'journals', docSnapshot.id))
+  );
+
+  await Promise.all(deletePromises);
+}

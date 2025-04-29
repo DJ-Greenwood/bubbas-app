@@ -1,11 +1,11 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { loadJournalEntries, recoverJournalEntry, hardDeleteJournalEntry } from './journalServices';
+import { loadJournalEntries, recoverJournalEntry, hardDeleteJournalEntry } from './JournalService';
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { decryptField } from '@/utils/encryption';
 import { fetchPassPhrase } from '@/utils/passPhraseService';
-import { auth } from '@/utils/firebaseClient';
+
 
 const JournalTrashPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -31,8 +31,8 @@ const JournalTrashPage = () => {
     const loaded = await loadJournalEntries('trash');
     const decrypted = loaded.entries.map(entry => ({
       ...entry,
-      userText: decryptField(entry.userText || '', passPhrase),
-      bubbaReply: decryptField(entry.bubbaReply || '', passPhrase),
+      userText: decryptField(entry.encryptedUserText || '', passPhrase),
+      bubbaReply: decryptField(entry.encryptedBubbaReply || '', passPhrase),
     }));
     setEntries(decrypted);
   };

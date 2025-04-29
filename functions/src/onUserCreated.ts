@@ -30,9 +30,8 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
         ethics: now,
       },
       preferences: {
-        tone: 'friendly',         // Tone setting (friendly / professional / casual / etc.)
-        theme: 'light',           // UI theme
-        startPage: '/chat',        // Where to start when login
+        emotionCharacterSet: 'Bubba',         // UI theme
+        emotionIconSize: 64,        // Size of the emotion icon nummber of pixils
         localStorageEnabled: false, // ✨ Whether journals are saved locally too
       },
       usage: {

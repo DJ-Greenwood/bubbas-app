@@ -3,7 +3,7 @@
 
 import React from 'react';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
-import JournalPage from '../../components/Journal/JournalPage';
+import JournalPage from '../../components/JournalChat/Journal/JournalPage';
 
 export default function Journal() {
 return (

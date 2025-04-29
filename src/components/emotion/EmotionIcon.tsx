@@ -1,49 +1,25 @@
 'use client';
 import React from 'react';
-
-export type Emotion =
-  | "joyful" 
-  | "peaceful" 
-  | "tired" 
-  | "nervous"
-  | "frustrated" 
-  | "grateful" 
-  | "hopeful" 
-  | "isolated"
-  | "confused" 
-  | "reflective" 
-  | "sad" 
-  | "angry";
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
+import { Emotion, getEmotionImagePath } from '@/components/emotion/emotionAssets';
 
 export interface EmotionIconProps {
   emotion: Emotion;
   size?: number; // optional size override
 }
 
-const EmotionIcon: React.FC<EmotionIconProps> = ({ emotion, size = 64 }) => {
-  const emotionImageMap: Record<Emotion, string> = {
-    joyful: "/assets/images/emotions/Joyful.jpg",
-    peaceful: "/assets/images/emotions/Peaceful.jpg",
-    tired: "/assets/images/emotions/Drained.jpg",
-    nervous: "/assets/images/emotions/Nervous.jpg",
-    frustrated: "/assets/images/emotions/Frustrated.jpg",
-    grateful: "/assets/images/emotions/Greatful.jpg",
-    hopeful: "/assets/images/emotions/Hopeful.jpg",
-    isolated: "/assets/images/emotions/Isolated.jpg",
-    confused: "/assets/images/emotions/Confused.jpg",
-    reflective: "/assets/images/emotions/Reflective.jpg",
-    sad: "/assets/images/emotions/Sad.jpg",
-    angry: "/assets/images/emotions/Angry.jpg",
-  };
+const EmotionIcon: React.FC<EmotionIconProps> = ({ emotion, size }) => {
+  const { emotionIconSize, characterSet } = useEmotionSettings(); // <-- pulling characterSet too
+  const finalSize = size ?? emotionIconSize;
 
-  const src = emotionImageMap[emotion] || "/assets/images/emotions/default.jpg";
+  const src = getEmotionImagePath(emotion, characterSet || "default");
 
   return (
     <img
       src={src}
       alt={emotion}
       className="object-cover rounded"
-      style={{ width: size, height: size }}
+      style={{ width: finalSize, height: finalSize }}
     />
   );
 };

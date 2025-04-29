@@ -1,13 +1,13 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { loadJournalEntries, saveEditedJournalEntry, softDeleteJournalEntry } from './journalServices';
+import { loadJournalEntries, saveEditedJournalEntry, softDeleteJournalEntry } from './JournalService';
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { decryptField } from '@/utils/encryption';
 import { fetchPassPhrase } from '@/utils/passPhraseService';
 import { setUserUID } from '@/utils/encryption';
 import { auth } from '@/utils/firebaseClient';
-import { detectEmotion } from '../emotion/EmotionDetector';
+import { detectEmotion } from '../../emotion/EmotionDetector';
 
 const JournalPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -40,18 +40,18 @@ const JournalPage = () => {
       let userText = "[Missing]";
       let bubbaReply = "[Missing]";
       
-      if (entry.userText) {
+      if (entry.encryptedUserText) {
         try {
-          const parsed = JSON.parse(decryptField(entry.userText, passPhrase));
+          const parsed = JSON.parse(decryptField(entry.encryptedUserText, passPhrase));
           userText = parsed.userText;
         } catch (err) {
           console.warn("Failed to decrypt userText:", err);
         }
       }
 
-      if (entry.bubbaReply) {
+      if (entry.encryptedBubbaReply) {
         try {
-          const parsed = JSON.parse(decryptField(entry.bubbaReply, passPhrase));
+          const parsed = JSON.parse(decryptField(entry.encryptedBubbaReply, passPhrase));
           bubbaReply = parsed.bubbaReply;
         } catch (err) {
           console.warn("Failed to decrypt bubbaReply:", err);

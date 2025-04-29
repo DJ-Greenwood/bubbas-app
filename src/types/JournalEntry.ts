@@ -1,19 +1,25 @@
 // Define or import the Emotion type
-export type Emotion =
-| "joyful" | "peaceful" | "tired" | "nervous"
-| "frustrated" | "grateful" | "hopeful" | "isolated"
-| "confused" | "reflective" | "sad" | "angry";
+import { Emotion } from '@/components/emotion/EmotionIcon';
 
 // Define the updated JournalEntry type
-export type JournalEntry = {
+// src/types/JournalEntry.ts
+
+export interface JournalEntry {
   version: number;
-  userText: string;
-  bubbaReply: string;
-  emotion: Emotion;
+  createdAt?: string;
   timestamp: string;
-  deleted?: boolean; // default false
-  promptToken?: number; // optional, for tracking prompt tokens
-  completionToken?: number; // optional, for tracking completion tokens
-  totalToken?: number; // optional, for tracking total tokens
-  usage?: { promptTokens: number; completionTokens: number; totalTokens: number;  }; // optional, for tracking token usage
-};
+  emotion: Emotion;
+  encryptedUserText?: string; 
+  encryptedBubbaReply?: string;
+  deleted: boolean;
+  promptToken: number;
+  completionToken: number;
+  totalToken: number;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+
+}
+

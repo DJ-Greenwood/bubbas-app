@@ -1,17 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import chatService from '../../utils/firebaseChatService';
-import { encryptData, decryptField } from '../../utils/encryption';
-import { auth, db } from '../../utils/firebaseClient';
-import { collection, getDocs } from 'firebase/firestore';
+import { auth } from '../../utils/firebaseClient';
 import EmotionIcon, { Emotion } from '../../components/emotion/EmotionIcon';
 import { detectEmotion } from '../../components/emotion/EmotionDetector';
-import { parseFirestoreDate } from '../../utils/parseDate';
-import { JournalEntry } from '@/types/JournalEntry';
-import { saveJournalEntry, loadJournalEntries } from '../../utils/emotionChatService';
-import { fetchPassPhrase } from '../../utils/passPhraseService'; // ✅ Correct import
 import { setUserUID } from '@/utils/encryption';
+import { fetchPassPhrase } from '@/utils/passPhraseService';
+import JournalCard from '../JournalChat/Journal/JournalCard';
+import firebaseChatService from '@/utils/firebaseChatService'; // New consolidated chatService
+import * as chatService from '@/utils/chatServices'; // New consolidated chatService
+import { JournalEntry } from '@/types/JournalEntry';
+
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -19,17 +18,17 @@ const EmotionChat = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [passPhrase, setPassPhrase] = useState<string>("");
 
-  // ✅ Fetch passPhrase only once at startup
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      setUserUID(user.uid);
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        setUserUID(user.uid);
-      }
-
       const phrase = await fetchPassPhrase();
       if (phrase) {
         setPassPhrase(phrase);
@@ -38,188 +37,45 @@ const EmotionChat = () => {
     init();
   }, []);
 
-  // ✅ Only after passPhrase is ready
   useEffect(() => {
     if (passPhrase) {
-      startSession();
-      loadAndDecryptJournalEntries();
+      loadJournal();
     }
   }, [passPhrase]);
 
-  const startSession = async () => {
+  const loadJournal = async () => {
     try {
-      const { reply, usage, emotion } = await chatService.startEmotionalSupportSession();
-      setResponse(reply);
-      setEmotion(emotion);
-
-      const now = new Date();
-      const timestamp = now.toISOString();
-
-      const encryptedUserText = encryptData({ userText: "(Bubba's Welcome)" }, passPhrase);
-      const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
-
-      await saveJournalEntry({
-        version: 1,
-        createdAt: now.toISOString(),
-        timestamp,
-        emotion,
-        encryptedUserText,
-        encryptedBubbaReply,
-        deleted: false,
-        promptToken: usage.promptTokens,
-        completionToken: usage.completionTokens,
-        totalToken: usage.totalTokens,
-        usage: {
-          promptTokens: usage.promptTokens,
-          completionTokens: usage.completionTokens,
-          totalTokens: usage.totalTokens,
-        },
-      });
-
-      setJournalEntries(prev => [
-        {
-          version: 1,
-          userText: "(Bubba's Welcome)",
-          bubbaReply: reply,
-          emotion,
-          timestamp,
-          deleted: false,
-          promptToken: usage.promptTokens,
-          completionToken: usage.completionTokens,
-          totalToken: usage.totalTokens,
-        },
-        ...prev
-      ]);
-
+      const loaded = await chatService.loadChats('active');
+      setJournalEntries(loaded);
     } catch (error) {
-      console.error("Failed to start emotional support session:", error);
+      console.error("Failed to load journal entries:", error);
     }
   };
-
-  const loadAndDecryptJournalEntries = async () => {
-    try {
-      const loadedEntries = (await loadJournalEntries()) ?? [];
-  
-      const decryptedEntries: JournalEntry[] = loadedEntries.map((entry) => {
-        let userText = "[Missing]";
-        let bubbaReply = "[Missing]";
-  
-        if (entry.encryptedUserText && typeof entry.encryptedUserText === 'string' && entry.encryptedUserText.length > 0) {
-          try {
-            const decryptedRaw = decryptField(entry.encryptedUserText, passPhrase);
-            const parsed = JSON.parse(decryptedRaw);
-            userText = parsed.userText || "[Unreadable]";
-          } catch (err) {
-            console.warn("Failed to decrypt/parse userText:", err);
-            userText = entry.userText || "[Unreadable]";
-          }
-        } else if (entry.userText) {
-          userText = entry.userText;
-        }
-  
-        if (entry.encryptedBubbaReply && typeof entry.encryptedBubbaReply === 'string' && entry.encryptedBubbaReply.length > 0) {
-          try {
-            const decryptedRaw = decryptField(entry.encryptedBubbaReply, passPhrase);
-            const parsed = JSON.parse(decryptedRaw);
-            bubbaReply = parsed.bubbaReply || "[Unreadable]";
-          } catch (err) {
-            console.warn("Failed to decrypt/parse bubbaReply:", err);
-            bubbaReply = entry.bubbaReply || "[Unreadable]";
-          }
-        } else if (entry.bubbaReply) {
-          bubbaReply = entry.bubbaReply;
-        }
-  
-        return {
-          version: entry.version || 1,
-          userText,
-          bubbaReply,
-          emotion: entry.emotion,
-          timestamp: entry.timestamp,
-          deleted: entry.deleted ?? false,
-          promptToken: entry.promptToken ?? 0,
-          completionToken: entry.completionToken ?? 0,
-          totalToken: entry.totalToken ?? 0,
-        };
-      });
-  
-      const validEntries = decryptedEntries.filter(entry =>
-        entry.userText !== "[Missing]" && entry.bubbaReply !== "[Missing]"
-      );
-  
-      setJournalEntries(validEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
-    } catch (error) {
-      console.error("Failed to decrypt journal entries:", error);
-    }
-  };
-  
-  
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!userInput.trim()) return;
 
     setIsLoading(true);
-    setEmotion(null);
     setResponse("");
 
     try {
       const detectedEmotion = await detectEmotion(userInput);
       setEmotion(detectedEmotion);
 
-      const { reply, usage } = await chatService.askQuestion(userInput);
+      const { reply, usage } = await firebaseChatService.askQuestion(userInput);
       setResponse(reply);
 
-      const now = new Date();
-      const timestamp = now.toISOString();
+      await chatService.saveChat(userInput, reply, usage);
 
-      const encryptedUserText = encryptData({ userText: userInput }, passPhrase);
-      const encryptedBubbaReply = encryptData({ bubbaReply: reply }, passPhrase);
-
-      await saveJournalEntry({
-        version: 1,
-        createdAt: now.toISOString(),
-        timestamp,
-        emotion: detectedEmotion,
-        encryptedUserText,
-        encryptedBubbaReply,
-        deleted: false,
-        promptToken: usage.promptTokens,
-        completionToken: usage.completionTokens,
-        totalToken: usage.totalTokens,
-        usage: {
-          promptTokens: usage.promptTokens,
-          completionTokens: usage.completionTokens,
-          totalTokens: usage.totalTokens,
-        },
-      });
-
-      setJournalEntries(prev => [
-        {
-          version: 1,
-          userText: userInput,
-          bubbaReply: reply,
-          emotion: detectedEmotion,
-          timestamp,
-          deleted: false,
-          promptToken: usage.promptTokens,
-          completionToken: usage.completionTokens,
-          totalToken: usage.totalTokens,
-        },
-        ...prev
-      ]);
-
+      await loadJournal();
     } catch (error) {
-      console.error("Error submitting journal entry:", error);
+      console.error("Failed to submit:", error);
       setResponse("Oops! Something went wrong. Bubbas is trying again.");
     } finally {
       setIsLoading(false);
       setUserInput("");
     }
-  };
-
-  const toggleExpand = (index: number) => {
-    setExpandedIndex(prev => (prev === index ? null : index));
   };
 
   return (
@@ -266,33 +122,13 @@ const EmotionChat = () => {
         <div className="journal mt-8 border-t pt-4">
           <h3 className="text-lg font-semibold mb-4">📝 Your Emotional Journal</h3>
           <div className="space-y-4">
-            {journalEntries.map((entry, index) => (
-              <div
-                key={index}
-                className="bg-white bg-opacity-30 rounded shadow-md cursor-pointer p-4 relative"
-                onClick={() => toggleExpand(index)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-800 font-semibold truncate max-w-xs">
-                    {entry.userText.slice(0, 40)}{entry.userText.length > 40 && "..."}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{parseFirestoreDate(entry.timestamp).toLocaleString()}</span>
-                    <EmotionIcon emotion={entry.emotion} size={64} />
-                  </div>
-                </div>
-
-                {expandedIndex === index && (
-                  <div className="mt-3 text-sm text-gray-700 space-y-2">
-                    <p><strong>You:</strong> {entry.userText}</p>
-                    <p><strong>Bubba:</strong> {entry.bubbaReply}</p>
-                    <p><strong>Emotion:</strong> {entry.emotion}</p>
-                    <div className="text-xs text-right text-gray-500 mt-2">
-                      📜 Tokens Used: Prompt {entry.promptToken} | Completion {entry.completionToken} | Total {entry.totalToken}
-                    </div>
-                  </div>
-                )}
-              </div>
+            {journalEntries.map((entry) => (
+              <JournalCard
+                key={entry.timestamp}
+                entry={entry}
+                onEdit={undefined}
+                onSoftDelete={undefined}
+              />
             ))}
           </div>
         </div>

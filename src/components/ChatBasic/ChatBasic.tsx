@@ -53,12 +53,16 @@ const EmotionChat = () => {
       const result = await chatService.askQuestion(userInput);
       setResponse(result.reply || "");
       setUsage(result.usage || null);
+      setUserInput(""); // Clear input after sending
     } catch (error) {
       console.error("Error:", error);
       setResponse("Oops! Something went wrong. Bubbas is trying again.");
     } finally {
       setIsLoading(false);
+      setUserInput("");
     }
+    
+  
   };
 
   return (
@@ -69,7 +73,7 @@ const EmotionChat = () => {
           alt="Bubba the AI"
           className="w-16 h-16 object-cover rounded"
         />
-        Bubba the AI Emotional Chat
+        Bubba the AI Emotional Support Companion
       </h2>
       <p className="text-gray-600">
         Let Bubba help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
@@ -101,7 +105,9 @@ const EmotionChat = () => {
 
       {response && (
         <div className="response-display mt-4 relative bg-white p-4 rounded shadow">
-          <strong>Yorkie:</strong> <div className="mt-2">{response}</div>
+          <strong>Bubbas response:</strong> <div className="mt-2">{response}</div>
+          <p>
+          </p>
 
           {usage && (
             <div className="text-xs text-gray-500 absolute bottom-2 right-2">
