@@ -1,10 +1,10 @@
+
 import type { Metadata } from 'next';
 import ClientNav from '@/components/ClientNav/ClientNav'; 
 import { Geist, Geist_Mono } from 'next/font/google';
 import '../../public/assets/css/globals.css';
-
-
 import Link from 'next/link';
+import { AuthProvider } from '@/components/context/AuthContext'; // 👈 Import AuthProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -33,7 +33,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head />
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <AuthProvider> {/* 👈 Wrap all children */}
           <header className="bg-white py-4">
             <div className="container mx-auto px-4 flex items-center justify-between">
               {/* Left side: Logo or brand */}
@@ -49,7 +50,8 @@ export default function RootLayout({
           </header>
 
           <main>{children}</main>
-        </body>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

@@ -69,9 +69,9 @@ const EmotionChat = () => {
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       <h2 className="flex items-center gap-2">
         <img
-          src='/assets/images/emotions/default.jpg'
+          src='/assets/images/emotions/Bubba/default.jpg'
           alt="Bubba the AI"
-          className="w-16 h-16 object-cover rounded"
+          className="w-20 h-20 object-cover rounded"
         />
         Bubba the AI Emotional Support Companion
       </h2>

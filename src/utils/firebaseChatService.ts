@@ -4,7 +4,7 @@
 import { httpsCallable } from "firebase/functions";
 import { functions } from './firebaseClient'; // 👈 correct initialized Firebase
 import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import detectEmotion function
-import { Emotion } from '@/components/emotion/EmotionIcon';
+import { Emotion } from '@/components/emotion/emotionAssets';
 const callOpenAI = httpsCallable(functions, "callOpenAI");
 
 // Structure of the expected return from callOpenAI

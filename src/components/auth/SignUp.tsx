@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '../../../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import '../../../public/assets/css/globals.css';
-import CryptoJS from "crypto-js";
-import { setUserUID } from '@/utils/encryption';
+import { createNewUserProfile } from '@/utils/userProfileService'; // ✅ Correct import
+import { setUserUID } from '@/utils/encryption'; // ✅ Correct import
 
 const SignUpComponent = () => {
   const router = useRouter();
@@ -19,89 +18,33 @@ const SignUpComponent = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getKey = (passPhrase: string): string => {
-    return CryptoJS.SHA256(passPhrase).toString();
-  };
-
   const handleSignUp = async () => {
     setError(null);
-
+  
     if (!email || !password || !passphrase) {
       setError('Please fill in all fields.');
       return;
     }
-
+  
     try {
-      // Create the user first
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
+  
       if (!user) {
         throw new Error('User not authenticated after sign-up.');
       }
-
-      const db = getFirestore();
-
-      // Save the full user profile
-      const userProfileRef = doc(db, 'users', user.uid);
-      await setDoc(userProfileRef, {
-        email: user.email,
-        createdAt: new Date().toISOString(),
-        username: '',
-        phoneNumber: '',
-        agreedTo: {
-          terms: new Date().toISOString(),
-          privacy: new Date().toISOString(),
-          ethics: new Date().toISOString()
-        },
-        preferences: {
-          tone: 'neutral',
-          theme: 'light',
-          startPage: 'home'
-        },
-        usage: {
-          tokens: {
-            lifetime: 0,
-            monthly: {}
-          },
-          voiceChars: {
-            tts: {
-              lifetime: 0,
-              monthly: {}
-            },
-            stt: {
-              lifetime: 0,
-              monthly: {}
-            }
-          }
-        },
-        subscription: {
-          tier: 'free',
-          activationDate: new Date().toISOString(),
-          expirationDate: ''
-        },
-        features: {
-          memory: false,
-          tts: false,
-          stt: false,
-          emotionalInsights: false
-        }
-      });
-
-      // Save the encrypted passphrase
-      const preferencesRef = doc(db, 'users', user.uid, 'preferences', 'security');
-      await setDoc(preferencesRef, {
-        passPhrase: getKey(passphrase),
-      });
-
-      setUserUID(user.uid);
-      console.log('✅ User signed up successfully');
+  
+      setUserUID(user.uid); // <-- ✅ Add this line here
+  
+      await createNewUserProfile(user.uid, email, passphrase);
+  
+      console.log('✅ User signed up and profile created successfully');
       router.push('/profile');
     } catch (error: any) {
       console.error('Sign-up error:', error);
       setError(error.message || 'Sign-up failed');
     }
-  };
+  };  
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,8 +72,8 @@ const SignUpComponent = () => {
   return (
     <div className="emotion-chat-container max-w-xl mx-auto mt-10 p-6 rounded shadow-md bg-white">
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <img src="/assets/images/emotions/default.jpg" alt="Bubba AI" className="w-12 h-12 rounded" />
-        Bubba’s Welcome Chat
+        <img src="/assets/images/emotions/Bubba/default.jpg" alt="Bubba AI" className="w-20 h-20 object-cover rounded" />
+        {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!
       </h2>
 
       {error && <div className="text-red-500 mb-2">⚠️ {error}</div>}
@@ -138,7 +81,7 @@ const SignUpComponent = () => {
       <form onSubmit={handleNext} className="flex flex-col gap-4">
         {step === 0 && (
           <>
-            <p>What's your email?</p>
+            <p>It's Bubba. Let's get you signed up!</p>
             <input
               type="email"
               value={email}
@@ -150,36 +93,49 @@ const SignUpComponent = () => {
         )}
         {step === 1 && (
           <>
-            <p>Create a password:</p>
+            <p>And your secret password? (Bubba promises not to tell!)</p>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               className="border p-2 rounded"
+              autoFocus
             />
           </>
         )}
         {step === 2 && (
           <>
-            <p>Create a secret passphrase:</p>
+            <p>Now create a secret passphrase.</p>
+            <p>It will be used to encrypt your data. You don't need to remember it, I won't either!</p>
             <input
               type="text"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               required
               className="border p-2 rounded"
+              autoFocus
             />
           </>
         )}
         {step === 3 && (
           <>
-            <p>Accept the terms:</p>
+            <p>Here are the terms of service for Bubbas.AI</p>
+            <p>By checking the box you agree to accept and follow:</p>
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              Terms of Service
+            </a>
             <label className="text-sm flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
+                autoFocus
               />
               Accept Terms
             </label>

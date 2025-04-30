@@ -13,9 +13,6 @@ interface SaveJournalEntry {
   encryptedUserText: string;
   encryptedBubbaReply: string;
   deleted?: boolean;
-  promptToken?: number;
-  completionToken?: number;
-  totalToken?: number;
   usage?: {
     promptTokens: number;
     completionTokens: number;
@@ -45,9 +42,6 @@ export const saveJournalEntry = async (entry: SaveJournalEntry) => {
     createdAt: entry.createdAt,
     deleted: entry.deleted ?? false,
     version: entry.version,
-    promptToken: entry.promptToken ?? 0,
-    completionToken: entry.completionToken ?? 0,
-    totalToken: entry.totalToken ?? 0,
     usage: entry.usage ?? {
       promptTokens: 0,
       completionTokens: 0,

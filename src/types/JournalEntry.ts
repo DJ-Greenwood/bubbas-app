@@ -1,5 +1,5 @@
 // Define or import the Emotion type
-import { Emotion } from '@/components/emotion/EmotionIcon';
+import { Emotion } from '@/components/emotion/emotionAssets'; // Adjust the import path as necessary
 
 // Define the updated JournalEntry type
 // src/types/JournalEntry.ts
@@ -12,10 +12,8 @@ export interface JournalEntry {
   encryptedUserText?: string; 
   encryptedBubbaReply?: string;
   deleted: boolean;
-  promptToken: number;
-  completionToken: number;
-  totalToken: number;
-  usage?: {
+  status: string;  
+  usage: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '@/types/JournalEntry';
 import EmotionIcon from '../../emotion/EmotionIcon';
 import { decryptField } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/passPhraseService';
+import { fetchPassPhrase } from '@/utils/chatServices';
 
 interface JournalCardProps {
   entry: JournalEntry;
@@ -85,7 +85,7 @@ const JournalCard: React.FC<JournalCardProps> = ({ entry, onEdit, onSoftDelete, 
       )}
 
       <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
-        📜 Tokens: Prompt {entry.promptToken} | Completion {entry.completionToken} | Total {entry.totalToken}
+        📜 Tokens: Prompt {entry.usage.promptTokens} | Completion {entry.usage.completionTokens} | Total {entry.usage.totalTokens}
       </div>
 
       <div className="flex gap-2 mt-3">

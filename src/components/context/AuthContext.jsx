@@ -1,5 +1,6 @@
+'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from '../../firebase'; // Adjust the path to your firebase configuration
+import { auth } from '@/utils/firebaseClient'; // Adjust the path to your firebase configuration
 import {
 createUserWithEmailAndPassword,
 signInWithEmailAndPassword,

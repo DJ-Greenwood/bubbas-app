@@ -67,30 +67,5 @@ export const createUserProfile = auth.user().onCreate(async (event) => {
   } catch (err) {
     console.error("❌ Failed to create user profile:", err);
   }
-
-  try {
-    await journalRootRef.set({ initializedAt: FieldValue.serverTimestamp() });
-    console.log("✅ Journal root initialized:", journalRootRef.path);
-  } catch (err) {
-    console.error("❌ Failed to create journal root:", err);
-  }
-
-  try {
-    console.log("📌 Creating welcome journal entry:", journalEntryRef.path);
-    await journalEntryRef.set({
-      encryptedData: "", // empty first, user will save real data later
-      createdAt: FieldValue.serverTimestamp(),
-      emotion: "joyful",
-      note: "Welcome journal created automatically.",
-      deleted: false,
-      version: 1,
-      promptToken: 0, // optional, for tracking prompt tokens
-      completionToken: 0, // optional, for tracking completion tokens
-      totalToken: 0, // optional, for tracking total tokens
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, },
-    });
-    console.log("✅ Welcome journal entry created");
-  } catch (err) {
-    console.error("❌ Failed to create welcome journal entry:", err);
-  }
 });
+

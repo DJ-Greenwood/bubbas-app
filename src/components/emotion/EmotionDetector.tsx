@@ -1,6 +1,6 @@
 'use client';
 import chatService from '../../utils/firebaseChatService';
-import { Emotion } from './EmotionIcon';
+import { Emotion } from './emotionAssets';
 
 export const detectEmotion = async (message: string): Promise<Emotion> => {
   const { reply } = await chatService.askQuestion(`

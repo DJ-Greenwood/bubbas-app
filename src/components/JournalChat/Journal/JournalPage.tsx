@@ -3,9 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { loadJournalEntries, saveEditedJournalEntry, softDeleteJournalEntry } from './JournalService';
 import JournalCard from './JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
-import { decryptField } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/passPhraseService';
-import { setUserUID } from '@/utils/encryption';
+import { decryptField, setUserUID } from '@/utils/encryption';
+import { fetchPassPhrase } from '@/utils/chatServices'; // Or from passPhraseService if you split it
 import { auth } from '@/utils/firebaseClient';
 import { detectEmotion } from '../../emotion/EmotionDetector';
 
@@ -32,30 +31,26 @@ const JournalPage = () => {
     if (passPhrase) {
       fetchEntries();
     }
-  }, [passPhrase]);
+  }, []);
 
   const fetchEntries = async () => {
-    const loaded = await loadJournalEntries('active');
-    const decrypted = loaded.entries.map(entry => {
-      let userText = "[Missing]";
-      let bubbaReply = "[Missing]";
-      
-      if (entry.encryptedUserText) {
-        try {
-          const parsed = JSON.parse(decryptField(entry.encryptedUserText, passPhrase));
-          userText = parsed.userText;
-        } catch (err) {
-          console.warn("Failed to decrypt userText:", err);
-        }
+    const result = await loadJournalEntries('active');
+    const decrypted = result.entries.map((entry) => {
+      let userText = '[Missing]';
+      let bubbaReply = '[Missing]';
+
+      try {
+        const parsedUser = JSON.parse(decryptField(entry.encryptedUserText || '', passPhrase));
+        userText = parsedUser.userText || userText;
+      } catch (err) {
+        console.warn("🔐 Failed to decrypt userText:", err);
       }
 
-      if (entry.encryptedBubbaReply) {
-        try {
-          const parsed = JSON.parse(decryptField(entry.encryptedBubbaReply, passPhrase));
-          bubbaReply = parsed.bubbaReply;
-        } catch (err) {
-          console.warn("Failed to decrypt bubbaReply:", err);
-        }
+      try {
+        const parsedBubba = JSON.parse(decryptField(entry.encryptedBubbaReply || '', passPhrase));
+        bubbaReply = parsedBubba.bubbaReply || bubbaReply;
+      } catch (err) {
+        console.warn("🔐 Failed to decrypt bubbaReply:", err);
       }
 
       return { ...entry, userText, bubbaReply };
@@ -64,13 +59,13 @@ const JournalPage = () => {
     setEntries(decrypted);
   };
 
+ 
   const handleEdit = async (timestamp: string, newText: string) => {
     const original = entries.find(e => e.timestamp === timestamp);
     if (!original) return;
-  
+
     const detectedEmotion = await detectEmotion(newText);
     await saveEditedJournalEntry(original, newText, detectedEmotion, passPhrase);
-
     fetchEntries();
   };
 
@@ -78,6 +73,7 @@ const JournalPage = () => {
     await softDeleteJournalEntry(timestamp);
     setEntries(prev => prev.filter(e => e.timestamp !== timestamp));
   };
+
 
   return (
     <div className="container mx-auto py-8">

@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
 import { auth } from '../../utils/firebaseClient';
-import EmotionIcon, { Emotion } from '../../components/emotion/EmotionIcon';
+import EmotionIcon from '../../components/emotion/EmotionIcon';
 import { detectEmotion } from '../../components/emotion/EmotionDetector';
+import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/passPhraseService';
+import { fetchPassPhrase } from '@/utils/chatServices';
 import JournalCard from '../JournalChat/Journal/JournalCard';
-import firebaseChatService from '@/utils/firebaseChatService'; // New consolidated chatService
-import * as chatService from '@/utils/chatServices'; // New consolidated chatService
+import firebaseChatService from '@/utils/firebaseChatService';
+import * as chatService from '@/utils/chatServices';
 import { JournalEntry } from '@/types/JournalEntry';
-
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
@@ -19,14 +20,25 @@ const EmotionChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [passPhrase, setPassPhrase] = useState<string>("");
+  const [user, setUser] = useState<User | null>(null);
 
+  // 🧠 Initialize Bubbas in emotional support mode
   useEffect(() => {
-    const user = auth.currentUser;
-    if (user) {
-      setUserUID(user.uid);
-    }
+    firebaseChatService.startEmotionalSupportSession();
   }, []);
 
+  // ✅ Listen for auth state and set user
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        setUserUID(firebaseUser.uid);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Fetch passphrase once
   useEffect(() => {
     const init = async () => {
       const phrase = await fetchPassPhrase();
@@ -37,15 +49,16 @@ const EmotionChat = () => {
     init();
   }, []);
 
+  // ✅ Load journal only when both user and passphrase are ready
   useEffect(() => {
-    if (passPhrase) {
-      loadJournal();
+    if (user && passPhrase) {
+      loadJournal(user);
     }
-  }, [passPhrase]);
+  }, [user, passPhrase]);
 
-  const loadJournal = async () => {
+  const loadJournal = async (user: User) => {
     try {
-      const loaded = await chatService.loadChats('active');
+      const loaded = await chatService.loadChats('active', passPhrase, user.uid);
       setJournalEntries(loaded);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
@@ -66,9 +79,10 @@ const EmotionChat = () => {
       const { reply, usage } = await firebaseChatService.askQuestion(userInput);
       setResponse(reply);
 
-      await chatService.saveChat(userInput, reply, usage);
-
-      await loadJournal();
+      if (user) {
+        await chatService.saveChat(userInput, reply, usage, passPhrase);
+        await loadJournal(user); // reload entries
+      }
     } catch (error) {
       console.error("Failed to submit:", error);
       setResponse("Oops! Something went wrong. Bubbas is trying again.");
@@ -81,7 +95,7 @@ const EmotionChat = () => {
   return (
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       <h2 className="flex items-center gap-2">
-        <img src='/assets/images/emotions/default.jpg' alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
+        <img src='/assets/images/emotions/Bubba/default.jpg' alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
         Bubba the AI Emotional Chat
       </h2>
       <p className="text-gray-600">
@@ -122,9 +136,9 @@ const EmotionChat = () => {
         <div className="journal mt-8 border-t pt-4">
           <h3 className="text-lg font-semibold mb-4">📝 Your Emotional Journal</h3>
           <div className="space-y-4">
-            {journalEntries.map((entry) => (
+            {journalEntries.map((entry, index) => (
               <JournalCard
-                key={entry.timestamp}
+                key={entry.timestamp || `entry-${index}`}
                 entry={entry}
                 onEdit={undefined}
                 onSoftDelete={undefined}

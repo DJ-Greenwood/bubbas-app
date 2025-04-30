@@ -44,9 +44,12 @@ export const saveEditedJournalEntry = async (
     emotion: emotion,
     encryptedUserText: encryptData({ userText: updatedUserText }, passPhrase),
     encryptedBubbaReply: encryptData({ bubbaReply: originalEntry.encryptedBubbaReply }, passPhrase),
-    promptToken: originalEntry.promptToken ?? 0,
-    completionToken: originalEntry.completionToken ?? 0,
-    totalToken: originalEntry.totalToken ?? 0,
+    usage:{
+    promptToken: originalEntry.usage.promptTokens ?? 0,
+    completionToken: originalEntry.usage.completionTokens ?? 0,
+    totalToken: originalEntry.usage.totalTokens ?? 0,
+    },
+    status: 'active',
   });
 };
 
