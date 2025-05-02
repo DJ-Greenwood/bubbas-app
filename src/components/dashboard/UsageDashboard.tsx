@@ -1,3 +1,4 @@
+// src/components/dashboard/UsageDashboard.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -112,6 +113,7 @@ const UsageDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              
               {/* Daily Usage */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -122,8 +124,7 @@ const UsageDashboard = () => {
                 </div>
                 <Progress 
                   value={dailyPercent} 
-                  className="h-2" 
-                  indicatorColor={isDailyLimitNearlyReached ? 'bg-amber-500' : undefined}
+                  className={`h-2 ${isDailyLimitNearlyReached ? '!bg-amber-500' : ''}`}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Resets at midnight</span>
@@ -141,8 +142,7 @@ const UsageDashboard = () => {
                 </div>
                 <Progress 
                   value={monthlyPercent} 
-                  className="h-2"
-                  indicatorColor={isMonthlyLimitNearlyReached ? 'bg-amber-500' : undefined}
+                  className={`h-2 ${isMonthlyLimitNearlyReached ? '!bg-amber-500' : ''}`} 
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Resets on the 1st of the month</span>
@@ -264,23 +264,6 @@ const UsageDashboard = () => {
                 >
                   Upgrade to See Analytics
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Usage Over Time - Real charts for paid tiers */}
-        {subscription.tier !== 'free' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage Analytics</CardTitle>
-              <CardDescription>
-                Track your usage over time
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="aspect-video bg-gray-100 rounded-md flex items-center justify-center">
-                <p className="text-gray-500">Usage charts would be displayed here for paid tiers.</p>
               </div>
             </CardContent>
           </Card>

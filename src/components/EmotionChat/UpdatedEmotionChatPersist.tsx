@@ -266,7 +266,7 @@ const UpdatedEmotionChatPersist = () => {
 
       {emotion && (
         <div className="emotion-display mt-4 flex items-center gap-2">
-          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion} size={64} />
+          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion}/>
         </div>
       )}
 

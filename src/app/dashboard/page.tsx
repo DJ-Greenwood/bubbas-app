@@ -11,6 +11,9 @@ import { Check, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
 import SubscriptionDetailsCard from '@/components/cards/SubscriptionDetailsCard';
+// Updated section for src/app/dashboard/page.tsx
+// Add this import at the top
+import TokenUsageCharts from '@/components/dashboard/TokenUsageCharts';
 
 export default function DashboardPage() {
   const { subscription, loading } = useSubscription();
@@ -91,7 +94,7 @@ export default function DashboardPage() {
                   </Button>
                   
                   <Button className="w-full justify-start" variant="outline" asChild>
-                    <a href="/journal">
+                    <a href="/Journal">
                       View Journal
                     </a>
                   </Button>
@@ -114,8 +117,41 @@ export default function DashboardPage() {
           
           {/* Usage Tab */}
           <TabsContent value="usage">
-            <UsageDashboard />
+            <div className="space-y-6">
+              <UsageDashboard />
+              
+              {/* Only show detailed charts for Plus and Pro users */}
+              {subscription.tier !== 'free' ? (
+                <TokenUsageCharts />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Detailed Analytics</CardTitle>
+                    <CardDescription>
+                      Upgrade to Plus or Pro to access detailed analytics and charts
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="aspect-video bg-gray-100 rounded-md flex flex-col items-center justify-center p-4">
+                      <img 
+                        src="/assets/images/usage-analytics-preview.jpg" 
+                        alt="Usage Analytics Preview" 
+                        className="h-40 object-cover rounded-md opacity-50"
+                      />
+                      <Button 
+                        variant="default" 
+                        className="mt-4"
+                        onClick={() => setShowUpgradeDialog(true)}
+                      >
+                        Upgrade to See Analytics
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
+
           
           {/* Subscription Tab */}
           <TabsContent value="subscription">

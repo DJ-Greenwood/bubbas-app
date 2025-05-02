@@ -1,7 +1,9 @@
+// src/components/emotion/EmotionIcon.tsx
 'use client';
 import React from 'react';
 import { Emotion, getEmotionImagePath } from './emotionAssets';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
 
 export interface EmotionIconProps {
   emotion: Emotion;
@@ -11,17 +13,24 @@ export interface EmotionIconProps {
 
 const EmotionIcon: React.FC<EmotionIconProps> = ({ 
   emotion, 
-  characterSet = "bubba",
-  size = 64
+  characterSet: propCharacterSet,
+  size: propSize
 }) => {
-  const src = getEmotionImagePath(emotion, characterSet);
+  // Get the current settings from context
+  const { emotionIconSize, characterSet: contextCharacterSet } = useEmotionSettings();
+  
+  // Use props if provided, otherwise use context values
+  const finalCharacterSet = propCharacterSet || contextCharacterSet;
+  const finalSize = propSize || emotionIconSize;
+  
+  const src = getEmotionImagePath(emotion, finalCharacterSet);
 
   return (
     <img
       src={src}
       alt={emotion}
       className="object-cover rounded"
-      style={{ width: size, height: size }}
+      style={{ width: finalSize, height: finalSize }}
     />
   );
 };

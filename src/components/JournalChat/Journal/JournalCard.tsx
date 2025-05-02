@@ -114,7 +114,7 @@ const JournalCard: React.FC<JournalCardProps> = ({
           {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown date'}
           {entry.lastEdited && <span className="ml-2 text-blue-500 text-xs">(Edited)</span>}
         </div>
-        {entry.emotion && <EmotionIcon emotion={entry.emotion} size={48} />}
+        {entry.emotion && <EmotionIcon emotion={entry.emotion}/>}
       </div>
 
       {editing ? (

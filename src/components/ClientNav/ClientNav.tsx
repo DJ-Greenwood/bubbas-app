@@ -41,7 +41,16 @@ export default function ClientNav() {
               <Link href="/profile" className={pathname === "/profile" ? "underline font-bold" : ""}>Profile</Link>
             </li>
             <li>
-              <button onClick={() => auth.signOut()} className="text-red-600 hover:underline">Sign Out</button>
+                <button 
+                onClick={() => {
+                  auth.signOut().then(() => {
+                  window.location.href = "/";
+                  });
+                }} 
+                className="text-red-600 hover:underline"
+                >
+                Sign Out
+                </button>
             </li>
           </>
         ) : (

@@ -3,7 +3,7 @@
 // This page allows users to chat with bubba using the Emotion Chat component.
 // It also has a journal feature that displays the user previous chats.
 "use client";
-import UpdatedEmotionChat from "@/components/EmotionChat/EmotionChat";
+import UpdatedEmotionChatPersist from "@/components/EmotionChat/EmotionChat";
 import RequireAuth from "@/components/RequiredAuth/RequiredAuth";
 
 
@@ -13,7 +13,7 @@ export default function JournalPage() {
       <div className="container mx-auto py-8">
         <h1 className="text-3xl font-bold mb-6">Chat with Bubba</h1>
       
-        <UpdatedEmotionChat />
+        <UpdatedEmotionChatPersist />
       </div>
     </RequireAuth>
   );

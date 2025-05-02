@@ -1,43 +1,60 @@
-// EmotionSettingsContext.tsx
+// src/components/context/EmotionSettingsContext.tsx
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
-import { EmotionCharacterKey } from '@/types/emotionCharacters'; // ✅ Correct import (assuming you have a shared type file)
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
 
-// If you don't have a shared type file, define it here instead:
-// export type EmotionCharacterKey = "bubba" | "charlie" | "rusty";
-
-const EmotionSettingsContext = createContext<{
+interface EmotionSettingsContextType {
   emotionIconSize: number;
   setEmotionIconSize: (size: number) => void;
   characterSet: EmotionCharacterKey;
   setCharacterSet: (set: EmotionCharacterKey) => void;
-}>({
+}
+
+const EmotionSettingsContext = createContext<EmotionSettingsContextType>({
   emotionIconSize: 64,
   setEmotionIconSize: () => {},
   characterSet: "bubba",
   setCharacterSet: () => {},
 });
 
-export const EmotionSettingsProvider = ({ children }: { children: React.ReactNode }) => {
+export const useEmotionSettings = () => useContext(EmotionSettingsContext);
+
+export const EmotionSettingsProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
   const [emotionIconSize, setEmotionIconSize] = useState<number>(64);
   const [characterSet, setCharacterSet] = useState<EmotionCharacterKey>("bubba");
-
+  
+  // Load settings from localStorage if available
+  useEffect(() => {
+    const savedSize = localStorage.getItem('emotionIconSize');
+    const savedCharSet = localStorage.getItem('characterSet');
+    
+    if (savedSize) {
+      const size = parseInt(savedSize, 10);
+      if (!isNaN(size)) {
+        setEmotionIconSize(size);
+      }
+    }
+    
+    if (savedCharSet && ["bubba", "charlie", "rusty"].includes(savedCharSet)) {
+      setCharacterSet(savedCharSet as EmotionCharacterKey);
+    }
+  }, []);
+  
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('emotionIconSize', emotionIconSize.toString());
+    localStorage.setItem('characterSet', characterSet);
+  }, [emotionIconSize, characterSet]);
+  
   const updateEmotionIconSize = (size: number) => {
     if (size >= 16 && size <= 128) {
       setEmotionIconSize(size);
-    } else {
-      console.warn("emotionIconSize must be between 16 and 128.");
     }
   };
 
   const updateCharacterSet = (set: EmotionCharacterKey) => {
-    const allowedCharacterSets: EmotionCharacterKey[] = ["bubba", "charlie", "rusty"];
-    if (allowedCharacterSets.includes(set)) {
-      setCharacterSet(set);
-    } else {
-      console.warn(`Invalid character set. Allowed values are: ${allowedCharacterSets.join(", ")}`);
-    }
+    setCharacterSet(set);
   };
 
   return (
@@ -51,5 +68,3 @@ export const EmotionSettingsProvider = ({ children }: { children: React.ReactNod
     </EmotionSettingsContext.Provider>
   );
 };
-
-export const useEmotionSettings = () => useContext(EmotionSettingsContext);

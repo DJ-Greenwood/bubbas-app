@@ -4,7 +4,6 @@
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from './firebaseClient';
 import { useState, useEffect } from 'react';
-import { SubscriptionTier, SubscriptionBenefits, SubscriptionTiers} from '@/types/subscriptionTypes'; // Adjust the import path as necessary
 
 // Define subscription tiers and their limits
 export const SUBSCRIPTION_TIERS = {
@@ -101,7 +100,11 @@ export const getUserTier = async (): Promise<SubscriptionData> => {
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
-      return SUBSCRIPTION_TIERS.free;
+      // Important: Include the tier property here!
+      return { 
+        ...SUBSCRIPTION_TIERS.free,
+        tier: 'free' 
+      };
     }
     
     const userData = userDoc.data();
@@ -118,7 +121,11 @@ export const getUserTier = async (): Promise<SubscriptionData> => {
     };
   } catch (error) {
     console.error('Error getting user tier:', error);
-    return SUBSCRIPTION_TIERS.free;
+    // Important: Include the tier property here!
+    return { 
+      ...SUBSCRIPTION_TIERS.free,
+      tier: 'free' 
+    };
   }
 };
 
@@ -218,7 +225,11 @@ export const isFeatureAvailable = async (
 
 // Hook to monitor user's subscription in real-time
 export const useSubscription = () => {
-  const [subscription, setSubscription] = useState<SubscriptionData>(SUBSCRIPTION_TIERS.free);
+  // Important: Initialize with the tier property!
+  const [subscription, setSubscription] = useState<SubscriptionData>({
+    ...SUBSCRIPTION_TIERS.free,
+    tier: 'free'
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -248,7 +259,11 @@ export const useSubscription = () => {
             status: userData.subscription?.status || 'active'
           });
         } else {
-          setSubscription(SUBSCRIPTION_TIERS.free);
+          // Important: Include the tier property here!
+          setSubscription({
+            ...SUBSCRIPTION_TIERS.free,
+            tier: 'free'
+          });
         }
         
         setLoading(false);
