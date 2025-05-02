@@ -5,8 +5,9 @@ import React, { useState, useEffect } from 'react';
 import {
   fetchUserProfile,
   updateUserProfile,
-  UserProfileData
+  
 } from '../../utils/userProfileService';
+import { UserProfileData } from '@/types/UserProfileData';
 
 // Import modular cards
 import PersonalInfoCard from './cards/PersonalInfoCard';
@@ -19,24 +20,30 @@ import TTSFeatureCard from './cards/TTSFeatureCard';
 import STTFeatureCard from './cards/STTFeatureCard';
 import { auth } from '../../utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const UserProfilePage = () => {
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-
   useEffect(() => {
-    const loadProfile = async () => {
-      const profile = await fetchUserProfile();
-      setUserProfile(profile);
-      setLoading(false);
-    };
-    const user = auth.currentUser;
-    if (user) {
-      setUserUID(user.uid);
-    }
-    loadProfile();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserUID(user.uid);
+        loadProfile();
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
   }, []);
+  
+  const loadProfile = async () => {
+    const profile = await fetchUserProfile();
+    setUserProfile(profile);
+    setLoading(false);
+  };
+
 
   const handleProfileUpdate = async (updates: Partial<UserProfileData>) => {
     await updateUserProfile(updates);

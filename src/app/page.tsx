@@ -1,3 +1,7 @@
+// src/app/page.tsx
+// This is the main entry point for the Bubbas.ai application.
+// It serves as the landing page and provides an overview of the app's features, mission, and values.
+'use client';
 import Link from 'next/link';
 import '../app/globals.css';
 

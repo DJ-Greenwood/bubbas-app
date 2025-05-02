@@ -17,6 +17,10 @@ const SignUpComponent = () => {
   const [passphrase, setPassphrase] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trimmedEmail = email.trim();
+  const trimmedPass = password.trim();
+  const trimmedPassphrase = passphrase.trim();
+
 
   const handleSignUp = async () => {
     setError(null);
@@ -27,7 +31,8 @@ const SignUpComponent = () => {
     }
   
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPass);
+
       const user = userCredential.user;
   
       if (!user) {
@@ -36,7 +41,7 @@ const SignUpComponent = () => {
   
       setUserUID(user.uid); // <-- ✅ Add this line here
   
-      await createNewUserProfile(user.uid, email, passphrase);
+      await createNewUserProfile(user.uid, trimmedEmail, trimmedPassphrase);
   
       console.log('✅ User signed up and profile created successfully');
       router.push('/profile');

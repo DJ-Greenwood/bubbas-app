@@ -1,168 +1,308 @@
+'use client';
 
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, getFirestore } from 'firebase/firestore';
-import { encryptData, decryptField } from '@/utils/encryption';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  where,
+  query,
+  orderBy,
+  getFirestore,
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { encryptData, decryptData } from '@/utils/encryption';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';
-
-import { getAuth } from "firebase/auth";
 
 const db = getFirestore();
 const auth = getAuth();
 
-export const fetchPassPhrase = async (): Promise<string | null> => {
+// Helper function to get user UID
+const getUserUID = (): string | null => {
   const user = auth.currentUser;
-  if (!user) return null;
+  return user ? user.uid : null;
+};
+
+// Fetch the passphrase from user preferences
+export const fetchPassPhrase = async (): Promise<string | null> => {
+  const uid = getUserUID();
+  if (!uid) return null;
 
   try {
-    const userDocRef = doc(db, "users", user.uid, "preferences", "security");
+    const userDocRef = doc(db, "users", uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      const preferences = userDocSnap.data().preferences;
-      return preferences?.passPhrase || null;
-    } else {
-      console.warn("User document not found.");
-      return null;
+      const userData = userDocSnap.data();
+      if (userData?.preferences?.security?.passPhrase) {
+        return userData.preferences.security.passPhrase;
+      }
     }
+    
+    console.warn("User passphrase not found");
+    return null;
   } catch (error) {
     console.error("Failed to fetch passPhrase:", error);
     return null;
   }
 };
 
-// Utility to ensure user and passPhrase are valid
-async function getUserUID() {
-  const user = auth.currentUser;
-  if (!user) throw new Error('User not authenticated.');
-  
-  return { uid: user.uid};
-}
-
-// Save a new journal/chat entry
+// ✅ Save new chat/journal entry
 export async function saveChat(
   userInput: string,
   bubbaReply: string,
   usage: { promptTokens: number; completionTokens: number; totalTokens: number },
   passPhrase: string,
 ) {
-  const { uid } = await getUserUID(); // Only get UID, not fetching passPhrase anymore
-  const phrase = await fetchPassPhrase(); // Fetch passphrase from secure storage
-
+  const userUID = getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
 
   const now = new Date();
   const timestamp = now.toISOString();
 
   const encryptedUserText = encryptData({ userText: userInput }, passPhrase);
-  const encryptedBubbaReply = encryptData({ bubbaReply: bubbaReply }, passPhrase);
+  const encryptedBubbaReply = encryptData({ bubbaReply }, passPhrase);
   const emotion = await detectEmotion(userInput);
 
   const newEntry: JournalEntry = {
     version: 1,
-    createdAt: now.toISOString(),
+    createdAt: timestamp,
     timestamp,
     emotion,
     encryptedUserText,
     encryptedBubbaReply,
     deleted: false,
     usage: {
-    promptTokens: usage.promptTokens,
-    completionTokens: usage.completionTokens,
-    totalTokens: usage.totalTokens,
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
     },
     status: 'active',
+    lastEdited: '',
+    lastEditedBy: ''
   };
 
-  const ref = collection(db, 'journals', uid, 'entries');
+  const ref = collection(db, 'journals', userUID, 'entries');
   await setDoc(doc(ref, timestamp), newEntry);
-
   console.log('✅ Saved chat and journal entry!');
 }
 
+// ✅ For backward compatibility
+export const saveConversation = saveChat;
 
-// Load journal/chat entries
+// ✅ Load journal entries by status
 export async function loadChats(
   status: 'active' | 'trash' = 'active',
   passPhrase: string,
-  Uid: string
-) {
-  const ref = collection(db, 'journals', Uid, 'entries');
-  const snapshot = await getDocs(ref);
+  uid?: string
+): Promise<JournalEntry[]> {
+  const userUID = uid || getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
 
-  const entries: JournalEntry[] = [];
-  snapshot.forEach(docSnap => {
-    const raw = docSnap.data() as JournalEntry;
-    if ((status === 'trash' && raw.deleted) || (status === 'active' && !raw.deleted)) {
-      entries.push({ ...raw }); // ✅ Correct spread
+  if (!passPhrase) {
+    console.warn('❌ Passphrase not available. Skipping journal load.');
+    return [];
+  }
+
+  try {
+    const entriesRef = collection(db, 'journals', userUID, 'entries');
+    const q = query(
+      entriesRef,
+      where('status', '==', status),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      console.log(`No ${status} entries found`);
+      return [];
     }
-  });
 
-  return entries.map(entry => {
-    let userText = '[Missing]';
-    let bubbaReply = '[Missing]';
-
-    try {
-      if (entry.encryptedUserText) {
-        const parsed = JSON.parse(decryptField(entry.encryptedUserText, passPhrase));
-        userText = parsed.userText;
+    const entries: JournalEntry[] = [];
+    
+    for (const doc of snapshot.docs) {
+      try {
+        const data = doc.data() as JournalEntry;
+        
+        // Only process entries with the correct status
+        if (data.status !== status) continue;
+        
+        entries.push({
+          ...data,
+          timestamp: doc.id // Use doc ID as timestamp
+        });
+      } catch (error) {
+        console.error(`Error processing document ${doc.id}:`, error);
       }
-    } catch (e) {
-      console.warn('Failed to decrypt userText:', e);
     }
 
-    try {
-      if (entry.encryptedBubbaReply) {
-        const parsed = JSON.parse(decryptField(entry.encryptedBubbaReply, passPhrase));
-        bubbaReply = parsed.bubbaReply;
-      }
-    } catch (e) {
-      console.warn('Failed to decrypt bubbaReply:', e);
-    }
-
-    return { ...entry, userText, bubbaReply };
-  });
+    return entries;
+  } catch (error) {
+    console.error('Failed to load journal entries:', error);
+    return [];
+  }
 }
 
-// Edit a journal/chat entry
+// ✅ For backward compatibility
+export const loadConversation = loadChats;
+
+// ✅ Edit a chat entry
 export async function editChat(
   timestamp: string,
   newUserInput: string,
   passPhrase: string,
-  Uid: string
-  ) {
-  const ref = doc(db, 'journals', Uid, 'entries', timestamp);
-  const docSnap = await getDoc(ref);
-  if (!docSnap.exists()) throw new Error('Journal entry not found.');
+  uid?: string
+) {
+  const userUID = uid || getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
 
-  const detectedEmotion = await detectEmotion(newUserInput);
-  await updateDoc(ref, {
-    encryptedUserText: encryptData({ userText: newUserInput }, passPhrase),
-    emotion: detectedEmotion,
-  });
+  try {
+    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
+    const docSnap = await getDoc(ref);
+    
+    if (!docSnap.exists()) {
+      throw new Error('Journal entry not found');
+    }
+    
+    const detectedEmotion = await detectEmotion(newUserInput);
+    await updateDoc(ref, {
+      encryptedUserText: encryptData({ userText: newUserInput }, passPhrase),
+      emotion: detectedEmotion,
+      lastEdited: new Date().toISOString()
+    });
+    
+    console.log('✅ Journal entry edited successfully');
+    return true;
+  } catch (error) {
+    console.error('Failed to edit journal entry:', error);
+    throw error;
+  }
 }
 
-// Soft delete (move to trash)
+// ✅ For backward compatibility
+export const editConversation = async (
+  timestamp: string,
+  newUserInput: string,
+  uid: string,
+  passPhrase: string
+) => {
+  return editChat(timestamp, newUserInput, passPhrase, uid);
+};
+
+// ✅ Soft delete (move to trash)
 export async function softDeleteChat(
   timestamp: string,
   passPhrase: string,
-  Uid: string ) {
-  const ref = doc(db, 'journals', Uid, 'entries', timestamp);
-  await updateDoc(ref, { deleted: true });
+  uid?: string
+) {
+  const userUID = uid || getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
+
+  try {
+    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
+    const docSnap = await getDoc(ref);
+    
+    if (!docSnap.exists()) {
+      throw new Error('Journal entry not found');
+    }
+    
+    await updateDoc(ref, { 
+      status: 'trash',
+      deleted: true,
+      deletedAt: new Date().toISOString()
+    });
+    
+    console.log('✅ Journal entry moved to trash');
+    return true;
+  } catch (error) {
+    console.error('Failed to soft delete journal entry:', error);
+    throw error;
+  }
 }
 
-// Recover from trash
+// ✅ For backward compatibility
+export const softDeleteConversation = async (
+  timestamp: string,
+  uid: string
+) => {
+  const passPhrase = await fetchPassPhrase();
+  if (!passPhrase) throw new Error('No passphrase available');
+  return softDeleteChat(timestamp, passPhrase, uid);
+};
+
+// ✅ Recover from trash
 export async function recoverChat(
   timestamp: string,
-  passPhrase: string,
-  Uid: string ) {
-  const ref = doc(db, 'journals', Uid, 'entries', timestamp);
-  await updateDoc(ref, { deleted: false });
+  uid?: string
+) {
+  const userUID = uid || getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
+
+  try {
+    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
+    await updateDoc(ref, { 
+      status: 'active',
+      deleted: false,
+      recoveredAt: new Date().toISOString()
+    });
+    
+    console.log('✅ Journal entry recovered');
+    return true;
+  } catch (error) {
+    console.error('Failed to recover journal entry:', error);
+    throw error;
+  }
 }
 
-// Hard delete (permanently delete)
+// ✅ For backward compatibility
+export const recoverConversation = async (
+  timestamp: string,
+  uid: string
+) => {
+  return recoverChat(timestamp, uid);
+};
+
+// ✅ Hard delete
 export async function hardDeleteChat(
   timestamp: string,
-  passPhrase: string,
-  Uid: string ) {
-  const ref = doc(db, 'journals', Uid, 'entries', timestamp);
-  await deleteDoc(ref);
+  uid?: string
+) {
+  const userUID = uid || getUserUID();
+  if (!userUID) {
+    throw new Error('User not authenticated');
+  }
+
+  try {
+    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
+    await deleteDoc(ref);
+    
+    console.log('✅ Journal entry permanently deleted');
+    return true;
+  } catch (error) {
+    console.error('Failed to permanently delete journal entry:', error);
+    throw error;
+  }
 }
+
+// ✅ For backward compatibility
+export const hardDeleteConversation = async (
+  timestamp: string,
+  uid: string
+) => {
+  return hardDeleteChat(timestamp, uid);
+};

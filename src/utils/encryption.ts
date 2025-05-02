@@ -27,19 +27,14 @@ export const encryptData = (data: object, passPhrase: string): string => {
 };
 
 // Decrypt a full data object
-export const decryptData = (encryptedData: string, key: string): string => {
+export const decryptData = (encryptedData: string, passPhrase: string): string => {
   try {
     if (!encryptedData || typeof encryptedData !== 'string') {
       console.warn("⚠️ No data to decrypt or invalid type");
       return "[Invalid]";
     }
 
-    // Optional: Validate if it's probably encrypted (quick basic check)
-    if (!encryptedData.includes("Salted__")) {
-      console.warn("⚠️ Data does not look encrypted, skipping decryption");
-      return encryptedData;
-    }
-
+    const key = getKey(passPhrase);
     const bytes = CryptoJS.AES.decrypt(encryptedData, key);
     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
 
@@ -66,37 +61,4 @@ export const decryptField = (cipherText: string, passPhrase: string): string => 
   const key = getKey(passPhrase);
   const bytes = CryptoJS.AES.decrypt(cipherText, key);
   return bytes.toString(CryptoJS.enc.Utf8);
-};
-
-// ----------------------
-// NEW: Device Secret Handshake logic
-// ----------------------
-
-// Generate a new device secret (random UUID)
-export const generateDeviceSecret = (): string => {
-  // Use random UUID or randomHex here
-  return crypto.randomUUID(); // Built-in secure random generator
-};
-
-// Encrypt the device secret using user passPhrase
-export const encryptDeviceSecret = (deviceSecret: string, userPassPhrase: string): string => {
-  const key = getKey(userPassPhrase);
-  return CryptoJS.AES.encrypt(deviceSecret, key).toString();
-};
-
-// Decrypt the device secret using user passPhrase
-export const decryptDeviceSecret = (encryptedDeviceSecret: string, userPassPhrase: string): string => {
-  try {
-    const key = getKey(userPassPhrase);
-    const bytes = CryptoJS.AES.decrypt(encryptedDeviceSecret, key);
-    return bytes.toString(CryptoJS.enc.Utf8);
-  } catch (error) {
-    console.error("Device secret decryption failed:", error);
-    return "[Error decrypting device secret]";
-  }
-};
-
-// Derive encryption key from device secret (for journal encryption)
-export const getEncryptionKeyFromDeviceSecret = (deviceSecret: string): string => {
-  return CryptoJS.SHA256(deviceSecret + appSalt).toString(); // Add salt for extra safety
 };

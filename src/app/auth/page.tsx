@@ -1,3 +1,5 @@
+// src/app/auth/page.tsx
+// This is a Next.js page component for authentication (login/signup).
 "use client";
 
 import SignUp from "@/components/auth/SignUp";

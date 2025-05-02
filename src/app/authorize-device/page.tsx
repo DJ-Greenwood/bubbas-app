@@ -1,4 +1,5 @@
 // src/app/authorize-device/page.tsx
+// This is a Next.js page component for authorizing a device.
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,8 +31,9 @@ const AuthorizeDevicePage = () => {
           throw new Error('User document not found');
         }
 
-        const passPhrase = userSnap.data()?.preferences?.security?.passPhrase;
-
+        const userData = userSnap.data();
+        const passPhrase = userData?.preferences?.security?.passPhrase;
+        
         if (!passPhrase) {
           throw new Error('No passphrase stored in user preferences');
         }

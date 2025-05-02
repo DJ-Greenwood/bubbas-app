@@ -1,4 +1,6 @@
 // src/app/profile/page.tsx
+// This is a Next.js page component for the User Profile feature.
+// This page allows users to view and edit their profile information.
 
 import UserProfile from '@/components/auth/UserProfile';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';

@@ -3,21 +3,7 @@ import { useState, useEffect } from "react";
 import chatService from '../../utils/firebaseChatService';
 import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import detectEmotion
 import EmotionIcon from '@/components/emotion/EmotionIcon'; // Import EmotionIcon component
-
-// 🧠 Define emotion types
-type Emotion =
-  | "joyful"
-  | "peaceful"
-  | "tired"
-  | "nervous"
-  | "frustrated"
-  | "grateful"
-  | "hopeful"
-  | "isolated"
-  | "confused"
-  | "reflective"
-  | "sad"
-  | "angry";
+import { Emotion } from '@/components/emotion/emotionAssets'; // Import Emotion type
 
 interface OpenAIUsage {
   promptTokens: number;

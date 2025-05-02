@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "../../../firebase";
+import { auth } from '@/utils/firebaseClient'; // ✅ Replace relative path
 import { signInWithEmailAndPassword } from "firebase/auth";
 import '../../../public/assets/css/globals.css';
 import { setUserUID } from '@/utils/encryption';
@@ -20,7 +20,13 @@ const LoginComponent = () => {
       const user = auth.currentUser;
       if (user) {
         setUserUID(user.uid);
-      
+        const { fetchPassPhrase } = await import('@/utils/encryption');
+
+        const phrase = await fetchPassPhrase();
+        if (!phrase) {
+          console.warn("No passphrase set. User might need to update preferences.");
+        }
+
       console.log("✅ User logged in successfully");
       router.push("/authorize-device"); // <-- 🚀 New flow!
     }
@@ -57,8 +63,10 @@ const LoginComponent = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          autoFocus // ✅ Add this
           className="border p-2 rounded w-full"
         />
+
       </>
     )}
     {step === 1 && (

@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
-import { auth } from '../../utils/firebaseClient';
-import EmotionIcon from '../../components/emotion/EmotionIcon';
-import { detectEmotion } from '../../components/emotion/EmotionDetector';
+import { auth } from '@/utils/firebaseClient';
+import EmotionIcon from '@/components/emotion/EmotionIcon';
+import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
 import { fetchPassPhrase } from '@/utils/chatServices';
-import JournalCard from '../JournalChat/Journal/JournalCard';
+import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import firebaseChatService from '@/utils/firebaseChatService';
 import * as chatService from '@/utils/chatServices';
 import { JournalEntry } from '@/types/JournalEntry';
@@ -22,12 +22,20 @@ const EmotionChat = () => {
   const [passPhrase, setPassPhrase] = useState<string>("");
   const [user, setUser] = useState<User | null>(null);
 
-  // 🧠 Initialize Bubbas in emotional support mode
+  // Initialize Bubbas in emotional support mode
   useEffect(() => {
-    firebaseChatService.startEmotionalSupportSession();
+    const initializeChat = async () => {
+      try {
+        await firebaseChatService.startEmotionalSupportSession();
+      } catch (error) {
+        console.error("Failed to initialize chat service:", error);
+      }
+    };
+    
+    initializeChat();
   }, []);
 
-  // ✅ Listen for auth state and set user
+  // Listen for auth state and set user
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -38,25 +46,34 @@ const EmotionChat = () => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ Fetch passphrase once
+  // Fetch passphrase
   useEffect(() => {
     const init = async () => {
-      const phrase = await fetchPassPhrase();
-      if (phrase) {
-        setPassPhrase(phrase);
+      if (!user) return;
+      
+      try {
+        const phrase = await fetchPassPhrase();
+        if (phrase) {
+          setPassPhrase(phrase);
+        }
+      } catch (error) {
+        console.error("Failed to fetch passphrase:", error);
       }
     };
+    
     init();
-  }, []);
+  }, [user]);
 
-  // ✅ Load journal only when both user and passphrase are ready
+  // Load journal entries when both user and passphrase are available
   useEffect(() => {
     if (user && passPhrase) {
-      loadJournal(user);
+      loadJournalEntries();
     }
   }, [user, passPhrase]);
 
-  const loadJournal = async (user: User) => {
+  const loadJournalEntries = async () => {
+    if (!user || !passPhrase) return;
+    
     try {
       const loaded = await chatService.loadChats('active', passPhrase, user.uid);
       setJournalEntries(loaded);
@@ -73,19 +90,23 @@ const EmotionChat = () => {
     setResponse("");
 
     try {
+      // Detect emotion from user input
       const detectedEmotion = await detectEmotion(userInput);
       setEmotion(detectedEmotion);
 
+      // Get response from chat service
       const { reply, usage } = await firebaseChatService.askQuestion(userInput);
       setResponse(reply);
 
-      if (user) {
+      // Save chat to database if user is authenticated
+      if (user && passPhrase) {
         await chatService.saveChat(userInput, reply, usage, passPhrase);
-        await loadJournal(user); // reload entries
+        // Reload journal entries to show the new entry
+        await loadJournalEntries();
       }
     } catch (error) {
       console.error("Failed to submit:", error);
-      setResponse("Oops! Something went wrong. Bubbas is trying again.");
+      setResponse("Oops! Something went wrong. Bubba is trying again.");
     } finally {
       setIsLoading(false);
       setUserInput("");
@@ -99,7 +120,7 @@ const EmotionChat = () => {
         Bubba the AI Emotional Chat
       </h2>
       <p className="text-gray-600">
-        Let Bubba help you reflect on your day, express how you’re feeling, or unwind for the weekend. 💬
+        Let Bubba help you reflect on your day, express how you're feeling, or unwind for the weekend. 💬
       </p>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
@@ -127,18 +148,19 @@ const EmotionChat = () => {
       )}
 
       {response && (
-        <div className="response-display mt-4">
-          <strong>Yorkie:</strong> {response}
+        <div className="response-display mt-4 p-4 bg-white rounded-lg shadow">
+          <strong>Bubba:</strong> {response}
         </div>
       )}
 
+      {/* Journal entries section */}
       {journalEntries.length > 0 && (
         <div className="journal mt-8 border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">📝 Your Emotional Journal</h3>
+          <h3 className="text-lg font-semibold mb-4">📝 Your Conversation History</h3>
           <div className="space-y-4">
-            {journalEntries.map((entry, index) => (
+            {journalEntries.map((entry) => (
               <JournalCard
-                key={entry.timestamp || `entry-${index}`}
+                key={entry.timestamp}
                 entry={entry}
                 onEdit={undefined}
                 onSoftDelete={undefined}

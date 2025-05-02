@@ -1,3 +1,9 @@
+// src/app/layout.tsx
+// This is the main layout component for the Next.js application.
+// It sets up the global styles, fonts, and the header with navigation.
+// It also wraps the application in an authentication context provider.
+// The layout is used to provide a consistent structure across all pages in the application.
+// 'use client' returns this error: You are attempting to export "metadata" from a component marked with "use client", which is disallowed. Either remove the export, or the "use client" directive. Read more: https://nextjs.org/docs/app/api-reference/directives/use-client
 
 import type { Metadata } from 'next';
 import ClientNav from '@/components/ClientNav/ClientNav'; 
