@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { UserProfileData } from '../../../utils/userProfileService';
+import { UserProfileData } from '@/types/UserProfileData';
 
 const STTFeatureCard: React.FC<{ user: UserProfileData }> = ({ user }) => (
   <div className="bg-white rounded-lg shadow-md p-6">

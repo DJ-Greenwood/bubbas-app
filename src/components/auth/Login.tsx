@@ -3,7 +3,8 @@ import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient'; // ✅ Replace relative path
 import { signInWithEmailAndPassword } from "firebase/auth";
 import '../../../public/assets/css/globals.css';
-import { setUserUID } from '@/utils/encryption';
+import { setUserUID} from '@/utils/encryption';
+import { fetchPassPhrase } from '@/utils/chatServices'; // ✅ Import fetchPassPhrase)
 
 const LoginComponent = () => {
   const router = useRouter();
@@ -20,8 +21,7 @@ const LoginComponent = () => {
       const user = auth.currentUser;
       if (user) {
         setUserUID(user.uid);
-        const { fetchPassPhrase } = await import('@/utils/encryption');
-
+        
         const phrase = await fetchPassPhrase();
         if (!phrase) {
           console.warn("No passphrase set. User might need to update preferences.");

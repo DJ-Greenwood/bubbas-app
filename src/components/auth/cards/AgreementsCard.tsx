@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { UserProfileData } from '../../../utils/userProfileService';
+import { UserProfileData } from '@/types/UserProfileData';
 import { parseFirestoreDate } from '../../../utils/parseDate';
 
 const AgreementsCard: React.FC<{ user: UserProfileData }> = ({ user }) => (

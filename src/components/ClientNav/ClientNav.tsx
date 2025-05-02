@@ -35,6 +35,9 @@ export default function ClientNav() {
               <Link href="/Journal" className={pathname === "/Journal" ? "underline font-bold" : ""}>Journal</Link>
             </li>
             <li>
+              <Link href={"/dashboard"} className={pathname === "/dashboard" ? "underline font-bold" : ""}>Dashboard</Link>
+            </li>
+            <li>
               <Link href="/profile" className={pathname === "/profile" ? "underline font-bold" : ""}>Profile</Link>
             </li>
             <li>
