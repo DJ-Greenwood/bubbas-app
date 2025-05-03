@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
 import { UserProfileData } from '@/types/UserProfileData';
-import { updateUserProfile } from '@/utils/userProfileService';
+
 
 export function useSyncEmotionSettings(
   userProfile: UserProfileData,

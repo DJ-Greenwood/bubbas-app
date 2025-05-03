@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
-import ClientNav from '@/components/ClientNav/ClientNav'; 
+import UpdatedClientNav from '@/components/ClientNav/UpdatedClientNav'; 
 import { Geist, Geist_Mono } from 'next/font/google';
 import '../../public/assets/css/globals.css';
 import Link from 'next/link';
@@ -46,7 +46,7 @@ export default function RootLayout({
 
                 {/* Right side: Navigation (Login, etc.) */}
                 <nav>
-                  <ClientNav />
+                  <UpdatedClientNav />
                 </nav>
               </div>
             </header>

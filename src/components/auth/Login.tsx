@@ -1,10 +1,16 @@
+'use client';
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from '@/utils/firebaseClient'; // ✅ Replace relative path
+import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import '../../../public/assets/css/globals.css';
-import { setUserUID} from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices'; // ✅ Import fetchPassPhrase)
+import { setUserUID } from '@/utils/encryption';
+import { fetchPassPhrase } from '@/utils/chatServices';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const LoginComponent = () => {
   const router = useRouter();
@@ -27,9 +33,9 @@ const LoginComponent = () => {
           console.warn("No passphrase set. User might need to update preferences.");
         }
 
-      console.log("✅ User logged in successfully");
-      router.push("/authorize-device"); // <-- 🚀 New flow!
-    }
+        console.log("✅ User logged in successfully");
+        router.push("/authorize-device");
+      }
     } catch (error: any) {
       setError(error.message || "Login failed");
     }
@@ -49,60 +55,82 @@ const LoginComponent = () => {
   };
 
   return (
-<div className="emotion-chat-container max-w-xl mx-auto mt-10 p-6 rounded shadow-md bg-white">
-  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-    <img src="/assets/images/emotions/Bubba/default.jpg" alt="Bubba AI" className="w-20 h-20 object-cover rounded" />
-    {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!</h2>
-    <p> It's Bubba. Let's get you logged in!</p>
-  {error && <p className="text-red-500 mb-2">⚠️ {error}</p>}
-  <form onSubmit={handleNext} className="space-y-4">
-    {step === 0 && (
-      <>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus // ✅ Add this
-          className="border p-2 rounded w-full"
-        />
+    <div className="container mx-auto py-8 max-w-md">
+      <Card className="mx-auto">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <img 
+              src="/assets/images/emotions/Bubba/default.jpg" 
+              alt="Bubba AI" 
+              className="w-16 h-16 object-cover rounded-full"
+            />
+            <div>
+              <CardTitle className="text-2xl">
+                {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!
+              </CardTitle>
+              <CardDescription>
+                It's Bubba. Let's get you logged in!
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      </>
-    )}
-    {step === 1 && (
-      <>
-        <p>And your secret password? (Bubba promises not to tell!)</p>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="border p-2 rounded w-full"
-          autoFocus
-        />
-      </>
-    )}
-
-    <div className="flex gap-4">
-      {step > 0 && (
-        <button
-          type="button"
-          onClick={handleBack}
-          className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
-        >
-          ← Go Back
-        </button>
-      )}
-      <button
-        type="submit"
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        {step === 1 ? "Let’s Go! →" : "Next →"}
-      </button>
+          <form onSubmit={handleNext} className="space-y-4">
+            {step === 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Please enter your email</h3>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Email address"
+                />
+              </div>
+            )}
+            
+            {step === 1 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">And your secret password? (Bubba promises not to tell!)</h3>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Password"
+                />
+              </div>
+            )}
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          {step > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleBack}
+            >
+              ← Back
+            </Button>
+          )}
+          <Button 
+            onClick={handleNext}
+            className={step === 0 ? "ml-auto" : ""}
+          >
+            {step === 1 ? "Let's Go! →" : "Next →"}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
-  </form>
-</div>
-
   );
 };
 

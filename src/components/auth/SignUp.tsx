@@ -2,11 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '../../../firebase';
+import { auth } from '@/utils/firebaseClient';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import '../../../public/assets/css/globals.css';
-import { createNewUserProfile } from '@/utils/userProfileService'; // ✅ Correct import
-import { setUserUID } from '@/utils/encryption'; // ✅ Correct import
+import { createNewUserProfile } from '@/utils/userProfileService';
+import { setUserUID } from '@/utils/encryption';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const SignUpComponent = () => {
   const router = useRouter();
@@ -17,10 +22,6 @@ const SignUpComponent = () => {
   const [passphrase, setPassphrase] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const trimmedEmail = email.trim();
-  const trimmedPass = password.trim();
-  const trimmedPassphrase = passphrase.trim();
-
 
   const handleSignUp = async () => {
     setError(null);
@@ -31,16 +32,18 @@ const SignUpComponent = () => {
     }
   
     try {
+      const trimmedEmail = email.trim();
+      const trimmedPass = password.trim();
+      const trimmedPassphrase = passphrase.trim();
+      
       const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPass);
-
       const user = userCredential.user;
   
       if (!user) {
         throw new Error('User not authenticated after sign-up.');
       }
   
-      setUserUID(user.uid); // <-- ✅ Add this line here
-  
+      setUserUID(user.uid);
       await createNewUserProfile(user.uid, trimmedEmail, trimmedPassphrase);
   
       console.log('✅ User signed up and profile created successfully');
@@ -75,96 +78,135 @@ const SignUpComponent = () => {
   };
 
   return (
-    <div className="emotion-chat-container max-w-xl mx-auto mt-10 p-6 rounded shadow-md bg-white">
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <img src="/assets/images/emotions/Bubba/default.jpg" alt="Bubba AI" className="w-20 h-20 object-cover rounded" />
-        {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!
-      </h2>
-
-      {error && <div className="text-red-500 mb-2">⚠️ {error}</div>}
-
-      <form onSubmit={handleNext} className="flex flex-col gap-4">
-        {step === 0 && (
-          <>
-            <p>It's Bubba. Let's get you signed up!</p>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="border p-2 rounded"
+    <div className="container mx-auto py-8 max-w-md">
+      <Card className="mx-auto">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <img 
+              src="/assets/images/emotions/Bubba/default.jpg" 
+              alt="Bubba AI" 
+              className="w-16 h-16 object-cover rounded-full"
             />
-          </>
-        )}
-        {step === 1 && (
-          <>
-            <p>And your secret password? (Bubba promises not to tell!)</p>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="border p-2 rounded"
-              autoFocus
-            />
-          </>
-        )}
-        {step === 2 && (
-          <>
-            <p>Now create a secret passphrase.</p>
-            <p>It will be used to encrypt your data. You don't need to remember it, I won't either!</p>
-            <input
-              type="text"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              required
-              className="border p-2 rounded"
-              autoFocus
-            />
-          </>
-        )}
-        {step === 3 && (
-          <>
-            <p>Here are the terms of service for Bubbas.AI</p>
-            <p>By checking the box you agree to accept and follow:</p>
-            <a
-              href="/terms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline"
-            >
-              Terms of Service
-            </a>
-            <label className="text-sm flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-                autoFocus
-              />
-              Accept Terms
-            </label>
-          </>
-        )}
+            <div>
+              <CardTitle className="text-2xl">
+                {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!
+              </CardTitle>
+              <CardDescription>
+                It's Bubba. Let's get you signed up!
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        <div className="flex gap-4">
+          <form onSubmit={handleNext} className="space-y-4">
+            {step === 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Please enter your email</h3>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Email address"
+                />
+              </div>
+            )}
+            
+            {step === 1 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Create a secure password</h3>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Password"
+                />
+              </div>
+            )}
+            
+            {step === 2 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Create a secret passphrase</h3>
+                <p className="text-sm text-muted-foreground">
+                  It will be used to encrypt your data. You don't need to remember it, Bubba won't either!
+                </p>
+                <Input
+                  type="text"
+                  value={passphrase}
+                  onChange={(e) => setPassphrase(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Passphrase"
+                />
+              </div>
+            )}
+            
+            {step === 3 && (<div className="space-y-4">
+              <h3 className="text-sm font-medium">Terms of Service</h3>
+              <p className="text-sm text-muted-foreground">
+                Please read and accept our Terms of Service to continue.
+              </p>
+
+              <div className="bg-muted p-4 rounded-md max-h-40 overflow-y-auto">
+                <p className="text-sm mb-2">
+                  By creating an account, you agree to the Terms of Service for Bubbas.AI.
+                </p>
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary text-sm underline inline-block"
+                >
+                  Read the full Terms of Service
+                </a>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="terms" 
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  I accept the terms and conditions
+                </label>
+              </div>
+            </div>
+
+            )}
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-between">
           {step > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={handleBack}
-              className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
             >
               ← Back
-            </button>
+            </Button>
           )}
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          <Button 
+            onClick={handleNext}
+            className={step === 0 ? "ml-auto" : ""}
           >
-            {step === 3 ? 'Sign Up' : 'Next →'}
-          </button>
-        </div>
-      </form>
+            {step === 3 ? "Sign Up" : "Next →"}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

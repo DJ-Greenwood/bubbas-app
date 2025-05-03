@@ -14,7 +14,7 @@ export const detectEmotion = async (message: string): Promise<Emotion> => {
   const allowedEmotions: Emotion[] = [
     "joyful", "peaceful", "tired", "nervous", "frustrated",
     "grateful", "hopeful", "isolated", "confused", "reflective",
-    "sad", "angry"
+    "sad", "angry",
   ];
 
   if (allowedEmotions.includes(cleaned)) {
