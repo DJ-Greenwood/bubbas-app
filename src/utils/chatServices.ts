@@ -17,6 +17,7 @@ import { getAuth } from 'firebase/auth';
 import { encryptData, decryptData } from '@/utils/encryption';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';
+import { recordTokenUsage } from '@/utils/recordTokens';
 
 const db = getFirestore();
 const auth = getAuth();
@@ -90,6 +91,20 @@ export async function saveChat(
 
   const ref = collection(db, 'journals', userUID, 'entries');
   await setDoc(doc(ref, timestamp), newEntry);
+  
+  // Record token usage with enhanced data
+  await recordTokenUsage(
+    {
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens
+    },
+    'journal',
+    timestamp, // journal entry ID
+    userInput.substring(0, 50), // first 50 chars of prompt
+    'gpt-4o' // model used - replace with actual model if available
+  );
+  
   console.log('✅ Saved chat and journal entry!');
 }
 

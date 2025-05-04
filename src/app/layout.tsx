@@ -6,6 +6,7 @@ import '../../public/assets/css/globals.css';
 import Link from 'next/link';
 import { AuthProvider } from '@/components/context/AuthContext';
 import { EmotionSettingsProvider } from '@/components/context/EmotionSettingsContext'; // 👈 Import EmotionSettingsProvider
+import { notFound } from 'next/navigation';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,26 +32,28 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isPageNotFound = false; // Replace with your logic to determine if the page is not found
+
+  if (isPageNotFound) {
+    notFound(); // This will render the default 404 page or a custom one if defined
+  }
+
   return (
     <html lang="en">
       <head />
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
-          <EmotionSettingsProvider> {/* 👈 Add EmotionSettingsProvider */}
+          <EmotionSettingsProvider>
             <header className="bg-white py-4">
               <div className="container mx-auto px-4 flex items-center justify-between">
-                {/* Left side: Logo or brand */}
                 <Link href="/" className="text-2xl font-bold text-gray-800">
                   Bubbas.AI
                 </Link>
-
-                {/* Right side: Navigation (Login, etc.) */}
                 <nav>
                   <UpdatedClientNav />
                 </nav>
               </div>
             </header>
-
             <main>{children}</main>
           </EmotionSettingsProvider>
         </AuthProvider>

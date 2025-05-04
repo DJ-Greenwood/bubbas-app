@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, AlertCircle, CheckCircle } from 'lucide-react';
-import { getTokenUsageStats } from '@/utils/tokenTrackingService';
+import { getTokenUsageStats, getTokenUsageSummary } from '@/utils/tokenTrackingService';
 import { useSubscription } from '@/utils/subscriptionService';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
@@ -31,6 +31,11 @@ const UsageDashboard = () => {
       monthlyLimit: 0
     }
   });
+  const [usageSummary, setUsageSummary] = useState<any>({
+    daily: { used: 0, limit: 0, percent: 0 },
+    monthly: { used: 0, limit: 0, percent: 0 },
+    lifetime: 0
+  });
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +51,14 @@ const UsageDashboard = () => {
     const loadStats = async () => {
       try {
         setIsLoading(true);
+        // Get detailed token usage stats
         const stats = await getTokenUsageStats();
         setUsageStats(stats);
+        
+        // Get simplified summary for display
+        const summary = await getTokenUsageSummary();
+        setUsageSummary(summary);
+        
         setError(null);
       } catch (err: any) {
         console.error('Error loading usage stats:', err);
@@ -94,8 +105,8 @@ const UsageDashboard = () => {
   }
   
   // Calculate percentages for progress bars
-  const dailyPercent = Math.min(100, Math.round((usageStats.limits.dailyUsed / usageStats.limits.dailyLimit) * 100) || 0);
-  const monthlyPercent = Math.min(100, Math.round((usageStats.limits.monthlyUsed / usageStats.limits.monthlyLimit) * 100) || 0);
+  const dailyPercent = usageSummary.daily.percent;
+  const monthlyPercent = usageSummary.monthly.percent;
   
   // Determine if limits are close to being reached (80% or more)
   const isDailyLimitNearlyReached = dailyPercent >= 80;
@@ -119,7 +130,7 @@ const UsageDashboard = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Daily Chat Usage</span>
                   <span className={`text-sm ${isDailyLimitNearlyReached ? 'text-amber-600 font-medium' : ''}`}>
-                    {usageStats.limits.dailyUsed} / {usageStats.limits.dailyLimit} chats
+                    {usageSummary.daily.used} / {usageSummary.daily.limit} chats
                   </span>
                 </div>
                 <Progress 
@@ -137,7 +148,7 @@ const UsageDashboard = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Monthly Token Usage</span>
                   <span className={`text-sm ${isMonthlyLimitNearlyReached ? 'text-amber-600 font-medium' : ''}`}>
-                    {formatNumber(usageStats.limits.monthlyUsed)} / {formatNumber(usageStats.limits.monthlyLimit)} tokens
+                    {formatNumber(usageSummary.monthly.used)} / {formatNumber(usageSummary.monthly.limit)} tokens
                   </span>
                 </div>
                 <Progress 
@@ -181,6 +192,33 @@ const UsageDashboard = () => {
                   </p>
                 </div>
               </div>
+              
+              {/* Subscription Features */}
+              <div className="p-4 bg-gray-50 rounded-md">
+                <h3 className="font-medium mb-3">Your Plan Features</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Daily Chat Limit</span>
+                    <span className="text-sm font-medium">{subscription.limits.dailyLimit}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Monthly Token Limit</span>
+                    <span className="text-sm font-medium">{formatNumber(subscription.limits.monthlyTokenLimit)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Speech-to-Text Minutes</span>
+                    <span className="text-sm font-medium">{subscription.limits.sttMinutes}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Text-to-Speech Minutes</span>
+                    <span className="text-sm font-medium">{subscription.limits.ttsMinutes}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Journal Entries</span>
+                    <span className="text-sm font-medium">{subscription.limits.maxJournalEntries}</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
             <CardFooter>
               {subscription.tier !== 'pro' && (
@@ -218,6 +256,16 @@ const UsageDashboard = () => {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Completion Tokens</span>
                   <span className="font-mono font-medium">{formatNumber(usageStats.lifetime.completionTokens)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Avg. Tokens/Chat</span>
+                  <span className="font-mono font-medium">
+                    {formatNumber(
+                      usageStats.lifetime.count > 0
+                        ? Math.round(usageStats.lifetime.totalTokens / usageStats.lifetime.count)
+                        : 0
+                    )}
+                  </span>
                 </div>
               </div>
               

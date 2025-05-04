@@ -8,22 +8,46 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
-import { getTokenUsageHistory } from '@/utils/tokenPersistenceService';
+import { getTokenUsageHistory, getAggregatedTokenStats } from '@/utils/tokenPersistenceService';
+import { getTokenUsageStats } from '@/utils/tokenTrackingService';
 import { useSubscription } from '@/utils/subscriptionService';
+import { AlertCircle } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD'];
 
 const TokenUsageCharts = () => {
   const [timeframe, setTimeframe] = useState<'day' | 'week' | 'month' | 'all'>('week');
   const [usageData, setUsageData] = useState<any[]>([]);
+  const [aggregatedStats, setAggregatedStats] = useState<any>({
+    daily: {},
+    monthly: {},
+    lifetime: {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      count: 0
+    }
+  });
+  const [usageStats, setUsageStats] = useState<any>({
+    limits: {
+      dailyRemaining: 0,
+      monthlyRemaining: 0,
+      dailyUsed: 0,
+      monthlyUsed: 0,
+      dailyLimit: 0,
+      monthlyLimit: 0
+    }
+  });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { subscription } = useSubscription();
 
   useEffect(() => {
     const loadUsageData = async () => {
       setLoading(true);
       try {
-        const data = await getTokenUsageHistory(timeframe);
+        // Get token usage history
+        const history = await getTokenUsageHistory(timeframe);
         
         // Group by day for time-series data
         const groupedByDay: Record<string, {
@@ -34,7 +58,7 @@ const TokenUsageCharts = () => {
           count: number;
         }> = {};
         
-        data.forEach(record => {
+        history.forEach(record => {
           const date = new Date(record.timestamp).toISOString().split('T')[0];
           
           if (!groupedByDay[date]) {
@@ -59,32 +83,44 @@ const TokenUsageCharts = () => {
         );
         
         setUsageData(sortedData);
+        
+        // Get aggregated stats
+        const stats = await getAggregatedTokenStats();
+        setAggregatedStats(stats);
+        
+        // Get usage stats with limits
+        const usageStatData = await getTokenUsageStats();
+        setUsageStats(usageStatData);
+        
+        setError(null);
       } catch (error) {
         console.error('Error loading usage data:', error);
+        setError('Failed to load usage data');
       } finally {
         setLoading(false);
       }
     };
     
     loadUsageData();
+    
+    // Refresh every 5 minutes
+    const intervalId = setInterval(loadUsageData, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
   }, [timeframe]);
 
   // Group by chat type for pie chart
-  const chatTypeData = React.useMemo(() => {
-    const types: Record<string, { name: string, value: number }> = {};
-    
-    usageData.forEach(day => {
-      Object.keys(day).forEach(key => {
-        if (key !== 'date' && key !== 'totalTokens' && key !== 'count') {
-          if (!types[key]) {
-            types[key] = { name: key, value: 0 };
-          }
-          types[key].value += day[key];
-        }
-      });
-    });
-    
-    return Object.values(types);
+  const tokenDistributionData = React.useMemo(() => {
+    return [
+      { 
+        name: 'Prompt', 
+        value: usageData.reduce((sum, day) => sum + day.promptTokens, 0) 
+      },
+      { 
+        name: 'Completion', 
+        value: usageData.reduce((sum, day) => sum + day.completionTokens, 0) 
+      }
+    ];
   }, [usageData]);
 
   // Format date for display
@@ -96,19 +132,35 @@ const TokenUsageCharts = () => {
     });
   };
 
-  // Calculate usage limits based on subscription
-  const usageLimits = {
-    monthlyTokens: subscription.tier === 'free' ? 10000 : 
-                   subscription.tier === 'plus' ? 50000 : 200000,
-    dailyChats: subscription.tier === 'free' ? 10 : 
-                subscription.tier === 'plus' ? 30 : 100,
+  // Format numbers with commas
+  const formatNumber = (num: number): string => {
+    return num.toLocaleString();
   };
+
+  // Calculate usage vs limit percentages
+  const dailyPercentUsed = Math.min(100, Math.round((usageStats.limits.dailyUsed / usageStats.limits.dailyLimit) * 100) || 0);
+  const monthlyPercentUsed = Math.min(100, Math.round((usageStats.limits.monthlyUsed / usageStats.limits.monthlyLimit) * 100) || 0);
 
   if (loading) {
     return (
       <Card>
         <CardContent className="pt-6 flex justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center p-4 bg-red-50 rounded-lg border border-red-200">
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+            <p className="text-red-700">
+              {error}
+            </p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -182,7 +234,7 @@ const TokenUsageCharts = () => {
                   />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: number) => value.toLocaleString()}
+                    formatter={(value: number) => formatNumber(value)}
                     labelFormatter={(label) => formatDate(label)}
                   />
                   <Legend />
@@ -212,10 +264,7 @@ const TokenUsageCharts = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={[
-                        { name: 'Prompt', value: usageData.reduce((sum, day) => sum + day.promptTokens, 0) },
-                        { name: 'Completion', value: usageData.reduce((sum, day) => sum + day.completionTokens, 0) }
-                      ]}
+                      data={tokenDistributionData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -224,14 +273,11 @@ const TokenUsageCharts = () => {
                       dataKey="value"
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     >
-                      {[
-                        { name: 'Prompt', value: usageData.reduce((sum, day) => sum + day.promptTokens, 0) },
-                        { name: 'Completion', value: usageData.reduce((sum, day) => sum + day.completionTokens, 0) }
-                      ].map((entry, index) => (
+                      {tokenDistributionData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                    <Tooltip formatter={(value: number) => formatNumber(value)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -249,7 +295,7 @@ const TokenUsageCharts = () => {
                     <XAxis dataKey="date" tickFormatter={formatDate} />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value: number) => value.toLocaleString()}
+                      formatter={(value: number) => formatNumber(value)}
                       labelFormatter={(label) => formatDate(label)}
                     />
                     <Legend />
@@ -259,6 +305,21 @@ const TokenUsageCharts = () => {
               </div>
             </div>
           </div>
+          
+          {/* Warning message if limits are nearly reached */}
+          {(dailyPercentUsed >= 80 || monthlyPercentUsed >= 80) && (
+            <div className="flex items-start p-4 rounded-md bg-amber-50 border border-amber-200">
+              <AlertCircle className="h-5 w-5 mr-2 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  You're approaching your {dailyPercentUsed >= 80 ? 'daily chat' : 'monthly token'} limit
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Consider upgrading your plan for increased usage limits
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Usage vs Limits */}
           <div>
@@ -271,17 +332,15 @@ const TokenUsageCharts = () => {
                 <CardContent>
                   <div className="h-8 bg-muted rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-primary"
-                      style={{ 
-                        width: `${Math.min(100, (usageData.reduce((sum, day) => sum + day.totalTokens, 0) / usageLimits.monthlyTokens) * 100)}%` 
-                      }}
+                      className={`h-full ${monthlyPercentUsed >= 80 ? 'bg-amber-500' : 'bg-primary'}`}
+                      style={{ width: `${monthlyPercentUsed}%` }}
                     ></div>
                   </div>
                   <div className="mt-2 text-sm text-muted-foreground flex justify-between">
                     <span>
-                      {usageData.reduce((sum, day) => sum + day.totalTokens, 0).toLocaleString()} tokens used
+                      {formatNumber(usageStats.limits.monthlyUsed)} tokens used
                     </span>
-                    <span>{usageLimits.monthlyTokens.toLocaleString()} limit</span>
+                    <span>{formatNumber(usageStats.limits.monthlyLimit)} limit</span>
                   </div>
                 </CardContent>
               </Card>
@@ -293,20 +352,53 @@ const TokenUsageCharts = () => {
                 <CardContent>
                   <div className="h-8 bg-muted rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-primary"
-                      style={{ 
-                        width: `${Math.min(100, (usageData[usageData.length - 1]?.count || 0) / usageLimits.dailyChats * 100)}%` 
-                      }}
+                      className={`h-full ${dailyPercentUsed >= 80 ? 'bg-amber-500' : 'bg-primary'}`}
+                      style={{ width: `${dailyPercentUsed}%` }}
                     ></div>
                   </div>
                   <div className="mt-2 text-sm text-muted-foreground flex justify-between">
                     <span>
-                      {usageData[usageData.length - 1]?.count || 0} chats today
+                      {usageStats.limits.dailyUsed} chats today
                     </span>
-                    <span>{usageLimits.dailyChats} limit</span>
+                    <span>{usageStats.limits.dailyLimit} limit</span>
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </div>
+          
+          {/* Summary Statistics */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Summary Statistics</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="text-sm text-gray-500">Total Tokens</p>
+                <p className="text-2xl font-semibold">
+                  {formatNumber(aggregatedStats.lifetime.totalTokens)}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="text-sm text-gray-500">Total Chats</p>
+                <p className="text-2xl font-semibold">
+                  {formatNumber(aggregatedStats.lifetime.count)}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="text-sm text-gray-500">Avg Tokens/Chat</p>
+                <p className="text-2xl font-semibold">
+                  {formatNumber(
+                    aggregatedStats.lifetime.count > 0
+                      ? Math.round(aggregatedStats.lifetime.totalTokens / aggregatedStats.lifetime.count)
+                      : 0
+                  )}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="text-sm text-gray-500">Current Tier</p>
+                <p className="text-2xl font-semibold capitalize">
+                  {subscription.tier}
+                </p>
+              </div>
             </div>
           </div>
         </div>

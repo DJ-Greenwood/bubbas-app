@@ -11,8 +11,7 @@ import { Check, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
 import SubscriptionDetailsCard from '@/components/cards/SubscriptionDetailsCard';
-// Updated section for src/app/dashboard/page.tsx
-// Add this import at the top
+
 import TokenUsageCharts from '@/components/dashboard/TokenUsageCharts';
 
 export default function DashboardPage() {

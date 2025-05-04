@@ -4,7 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getTokenUsageHistory, getAggregatedTokenStats, TokenRecord } from '@/utils/tokenPersistenceService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { getTokenUsageStats } from '@/utils/tokenTrackingService';
+import { useSubscription } from '@/utils/subscriptionService';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { AlertCircle } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2'];
 
@@ -23,27 +26,51 @@ const TokenUsageAnalytics = () => {
       count: 0
     }
   });
+  const [usageStats, setUsageStats] = useState<any>({
+    limits: {
+      dailyRemaining: 0,
+      monthlyRemaining: 0,
+      dailyUsed: 0,
+      monthlyUsed: 0,
+      dailyLimit: 0,
+      monthlyLimit: 0
+    }
+  });
+  
+  const { subscription } = useSubscription();
 
   useEffect(() => {
-    const loadTokenHistory = async () => {
+    const loadTokenData = async () => {
       try {
         setLoading(true);
+        
+        // Load token usage history
         const history = await getTokenUsageHistory(timeframe);
         setTokenHistory(history);
         
+        // Load aggregated token stats
         const stats = await getAggregatedTokenStats();
         setAggregatedStats(stats);
         
+        // Load usage stats with limits
+        const usageStatData = await getTokenUsageStats();
+        setUsageStats(usageStatData);
+        
         setError(null);
       } catch (err: any) {
-        console.error('Error loading token history:', err);
+        console.error('Error loading token data:', err);
         setError(err.message || 'Failed to load token usage data');
       } finally {
         setLoading(false);
       }
     };
     
-    loadTokenHistory();
+    loadTokenData();
+    
+    // Refresh every 5 minutes
+    const intervalId = setInterval(loadTokenData, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
   }, [timeframe]);
 
   // Prepare data for charts
@@ -107,8 +134,42 @@ const TokenUsageAnalytics = () => {
     return Object.values(groupedByType);
   };
   
+  const prepareModelPieChartData = () => {
+    // Group by model
+    const groupedByModel: Record<string, {
+      name: string;
+      value: number;
+    }> = {};
+    
+    tokenHistory.forEach(record => {
+      const model = record.model || 'unknown';
+      
+      if (!groupedByModel[model]) {
+        groupedByModel[model] = {
+          name: model,
+          value: 0
+        };
+      }
+      
+      groupedByModel[model].value += record.totalTokens;
+    });
+    
+    // Convert to array
+    return Object.values(groupedByModel);
+  };
+  
+  const prepareLineChartData = () => {
+    const barData = prepareBarChartData();
+    return barData.map(day => ({
+      ...day,
+      date: formatDate(day.date)
+    }));
+  };
+  
   const barChartData = prepareBarChartData();
   const pieChartData = preparePieChartData();
+  const modelPieChartData = prepareModelPieChartData();
+  const lineChartData = prepareLineChartData();
   
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -123,6 +184,10 @@ const TokenUsageAnalytics = () => {
   const formatNumber = (num: number): string => {
     return num.toLocaleString();
   };
+  
+  // Calculate usage vs limit percentages
+  const dailyPercentUsed = Math.min(100, Math.round((usageStats.limits.dailyUsed / usageStats.limits.dailyLimit) * 100) || 0);
+  const monthlyPercentUsed = Math.min(100, Math.round((usageStats.limits.monthlyUsed / usageStats.limits.monthlyLimit) * 100) || 0);
   
   if (loading) {
     return (
@@ -193,7 +258,97 @@ const TokenUsageAnalytics = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Bar chart for token usage over time */}
+            {/* Usage vs Limits */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Daily Chat Usage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${dailyPercentUsed >= 80 ? 'bg-amber-500' : 'bg-primary'}`}
+                      style={{ width: `${dailyPercentUsed}%` }}
+                    ></div>
+                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground flex justify-between">
+                    <span>
+                      {usageStats.limits.dailyUsed} / {usageStats.limits.dailyLimit} chats used
+                    </span>
+                    <span>{usageStats.limits.dailyRemaining} remaining</span>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Monthly Token Usage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${monthlyPercentUsed >= 80 ? 'bg-amber-500' : 'bg-primary'}`}
+                      style={{ width: `${monthlyPercentUsed}%` }}
+                    ></div>
+                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground flex justify-between">
+                    <span>
+                      {formatNumber(usageStats.limits.monthlyUsed)} / {formatNumber(usageStats.limits.monthlyLimit)} tokens
+                    </span>
+                    <span>{formatNumber(usageStats.limits.monthlyRemaining)} remaining</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Warning message if limits are nearly reached */}
+            {(dailyPercentUsed >= 80 || monthlyPercentUsed >= 80) && (
+              <div className="flex items-start p-4 rounded-md bg-amber-50 border border-amber-200">
+                <AlertCircle className="h-5 w-5 mr-2 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">
+                    You're approaching your {dailyPercentUsed >= 80 ? 'daily chat' : 'monthly token'} limit
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Consider upgrading your plan for increased usage limits
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Line chart for token usage over time */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Token Usage Trend</h3>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={lineChartData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatNumber(value)} />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      name="Prompt Tokens" 
+                      dataKey="promptTokens" 
+                      stroke="#8884d8" 
+                      activeDot={{ r: 8 }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      name="Completion Tokens" 
+                      dataKey="completionTokens" 
+                      stroke="#82ca9d" 
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            {/* Bar chart for token usage by day */}
             <div>
               <h3 className="text-lg font-medium mb-4">Token Usage by Day</h3>
               <div className="h-80 w-full">
@@ -260,47 +415,72 @@ const TokenUsageAnalytics = () => {
                 </div>
               </div>
               
-              {/* Summary stats */}
+              {/* Pie chart for usage by model */}
               <div>
-                <h3 className="text-lg font-medium mb-4">Summary Statistics</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-md">
-                      <p className="text-sm text-gray-500">Total Tokens</p>
-                      <p className="text-2xl font-semibold">
-                        {formatNumber(aggregatedStats.lifetime.totalTokens)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-md">
-                      <p className="text-sm text-gray-500">Total Chats</p>
-                      <p className="text-2xl font-semibold">
-                        {formatNumber(aggregatedStats.lifetime.count)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-md">
-                      <p className="text-sm text-gray-500">Prompt Tokens</p>
-                      <p className="text-2xl font-semibold">
-                        {formatNumber(aggregatedStats.lifetime.promptTokens)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-md">
-                      <p className="text-sm text-gray-500">Completion Tokens</p>
-                      <p className="text-2xl font-semibold">
-                        {formatNumber(aggregatedStats.lifetime.completionTokens)}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p className="text-sm text-gray-500">Average Tokens per Chat</p>
-                    <p className="text-2xl font-semibold">
-                      {formatNumber(
-                        aggregatedStats.lifetime.count > 0
-                          ? Math.round(aggregatedStats.lifetime.totalTokens / aggregatedStats.lifetime.count)
-                          : 0
-                      )}
-                    </p>
-                  </div>
+                <h3 className="text-lg font-medium mb-4">Token Usage by Model</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={modelPieChartData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        nameKey="name"
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {modelPieChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value: number) => formatNumber(value)} 
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+            
+            {/* Summary stats */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Summary Statistics</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500">Total Tokens</p>
+                  <p className="text-2xl font-semibold">
+                    {formatNumber(aggregatedStats.lifetime.totalTokens)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500">Total Chats</p>
+                  <p className="text-2xl font-semibold">
+                    {formatNumber(aggregatedStats.lifetime.count)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500">Prompt Tokens</p>
+                  <p className="text-2xl font-semibold">
+                    {formatNumber(aggregatedStats.lifetime.promptTokens)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500">Completion Tokens</p>
+                  <p className="text-2xl font-semibold">
+                    {formatNumber(aggregatedStats.lifetime.completionTokens)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md col-span-2 md:col-span-4">
+                  <p className="text-sm text-gray-500">Average Tokens per Chat</p>
+                  <p className="text-2xl font-semibold">
+                    {formatNumber(
+                      aggregatedStats.lifetime.count > 0
+                        ? Math.round(aggregatedStats.lifetime.totalTokens / aggregatedStats.lifetime.count)
+                        : 0
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
@@ -314,6 +494,7 @@ const TokenUsageAnalytics = () => {
                     <tr className="border-b">
                       <th className="px-4 py-2 text-left">Timestamp</th>
                       <th className="px-4 py-2 text-left">Type</th>
+                      <th className="px-4 py-2 text-left">Model</th>
                       <th className="px-4 py-2 text-right">Prompt</th>
                       <th className="px-4 py-2 text-right">Completion</th>
                       <th className="px-4 py-2 text-right">Total</th>
@@ -327,6 +508,9 @@ const TokenUsageAnalytics = () => {
                         </td>
                         <td className="px-4 py-2 capitalize">
                           {record.chatType || 'Other'}
+                        </td>
+                        <td className="px-4 py-2">
+                          {record.model || 'Unknown'}
                         </td>
                         <td className="px-4 py-2 text-right">
                           {formatNumber(record.promptTokens)}

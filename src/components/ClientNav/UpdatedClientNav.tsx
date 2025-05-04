@@ -28,12 +28,18 @@ export default function ClientNav() {
 
   if (!user) {
     return (
-      <nav role="navigation" aria-label="Main Navigation">
-        <ul className="flex space-x-4">
-          <li>
-            <Link href="/auth" className={pathname === "/auth" ? "underline font-bold" : ""}>Login</Link>
-          </li>
-        </ul>
+      <nav role="navigation" aria-label="Main Navigation" className="w-full">
+        <Tabs value={pathname} className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger 
+              value="/auth" 
+              className={isActive('/auth') ? 'bg-primary text-primary-foreground' : ''}
+              asChild
+            >
+              <Link href="/auth">Login</Link>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </nav>
     );
   }

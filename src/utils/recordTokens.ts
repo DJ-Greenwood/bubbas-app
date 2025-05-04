@@ -5,6 +5,8 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from './firebaseClient';
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { saveTokenUsage } from "./tokenPersistenceService";
+import { recordTokenUsage as trackTokenUsage } from "./tokenTrackingService";
 
 // Structure of token usage data
 export interface TokenUsage {
@@ -20,14 +22,28 @@ const recordTokenUsageFunction = httpsCallable(functions, "recordTokenUsage");
 const checkTokenLimitsFunction = httpsCallable(functions, "checkTokenLimits");
 
 // Record token usage after a successful API call
-export const recordTokenUsage = async (usage: TokenUsage): Promise<boolean> => {
+export const recordTokenUsage = async (
+  usage: TokenUsage, 
+  chatType: 'emotion' | 'basic' | 'journal' | 'other' = 'other',
+  journalEntryId?: string | null,
+  userPrompt?: string,
+  model?: string
+): Promise<boolean> => {
   if (!usage || typeof usage.totalTokens !== 'number') {
     console.error('Invalid token usage data:', usage);
     return false;
   }
   
   try {
+    // Record usage to Firebase Cloud Function (existing method)
     await recordTokenUsageFunction({ usage });
+    
+    // Record usage to tokenPersistenceService (for dashboard analytics)
+    await saveTokenUsage(usage, chatType, journalEntryId, userPrompt, model);
+    
+    // Record usage to tokenTrackingService (for usage limits)
+    await trackTokenUsage(usage);
+    
     return true;
   } catch (error) {
     console.error('Error recording token usage:', error);
