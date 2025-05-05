@@ -1,4 +1,5 @@
 import { Emotion } from '@/components/emotion/emotionAssets'; // Adjust the import path as necessary
+import { EmotionCharacterKey } from './emotionCharacters';
 
 export interface JournalEntry {
   version: number;
@@ -16,6 +17,8 @@ export interface JournalEntry {
     completionTokens: number;
     totalTokens: number;
   };
+  emotionCharacterSet: EmotionCharacterKey; // Added character set to the journal entry
+
 
 }
 

@@ -2,43 +2,78 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 👤 USER ROOT: Each user can read/write their own user profile
+    // ─── Auth Helper ───────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ─── User Ownership Check ──────────────────────
+    function isUserOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ─── TTS Preferences Validator ─────────────────
+    function isValidTTSPreferences() {
+      let prefs = request.resource.data.preferences;
+      
+      let ttsRateValid = !('preferences' in request.resource.data) || 
+                         !('ttsRate' in prefs) || 
+                         (prefs.ttsRate is number && prefs.ttsRate >= 0.5 && prefs.ttsRate <= 2.0);
+
+      let ttsPitchValid = !('preferences' in request.resource.data) || 
+                          !('ttsPitch' in prefs) || 
+                          (prefs.ttsPitch is number && prefs.ttsPitch >= 0.5 && prefs.ttsPitch <= 1.5);
+
+      let ttsAutoplayValid = !('preferences' in request.resource.data) || 
+                             !('ttsAutoplay' in prefs) || 
+                             (prefs.ttsAutoplay is bool);
+
+      return ttsRateValid && ttsPitchValid && ttsAutoplayValid;
+    }
+
+    // ─── TTS Feature Toggle Validator ──────────────
+    function isValidTTSFeatureToggle() {
+      return !('features' in request.resource.data) || 
+             !('tts' in request.resource.data.features) || 
+             (request.resource.data.features.tts is bool);
+    }
+
+    // ─── Users Collection ──────────────────────────
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isUserOwner(userId);
+      allow create: if isUserOwner(userId);
+      allow update: if isUserOwner(userId) &&
+                      isValidTTSPreferences() &&
+                      isValidTTSFeatureToggle();
+      allow delete: if isUserOwner(userId);
 
-      // 🔧 Allow subcollections like preferences, billing, etc.
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Nested collection: /users/{userId}/chats/{chatId}
+      match /chats/{chatId} {
+        allow read, write: if isUserOwner(userId);
+      }
+
+      // Nested collection: /users/{userId}/tokenUsage/{usageId}
+      match /tokenUsage/{usageId} {
+        allow read, create: if isUserOwner(userId);
+        allow update, delete: if false; // Immutable
       }
     }
 
-    // 🗂️ JOURNALS ROOT: User can manage their own journal root
-    match /journals/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      // ✍️ JOURNAL ENTRIES: inside journals/{userId}/entries/{entryId}
-      match /entries/{entryId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-
-    // 💬 CHATS: User can manage their own chat sessions
-    match /chats/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      match /{chatId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-
-    // 💳 BILLING: User can view and manage their own billing metadata
-    match /billing/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // ⚙️ ADMIN DOCUMENTS: Only admin users can read/write these
+    // ─── Admin Collection ──────────────────────────
     match /admin/{docId} {
-      allow read, write: if request.auth != null && request.auth.token.admin == true;
+      allow read, write: if false; // Only server SDK
+    }
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId 
+                  && (resource == null || 
+                      !request.resource.data.keys().hasAny(['preferences.theme']) || 
+                      request.resource.data.preferences.theme in ['light', 'dark', 'system']);
+    }
+    
+    match /users/{userId} {
+      allow read, write: if request.auth != null && 
+                          (request.auth.uid == userId || request.auth.token.admin == true);
     }
   }
 }

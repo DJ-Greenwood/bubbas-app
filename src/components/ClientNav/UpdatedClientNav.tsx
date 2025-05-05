@@ -6,11 +6,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { auth } from '../../../firebase';
 import { setUserUID } from '@/utils/encryption';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { LoginDialog } from '../auth/Login';
+import { SignUpDialog } from '../auth/SignUp';
 
 export default function ClientNav() {
   const { user } = useAuth();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState('/');
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -28,18 +33,23 @@ export default function ClientNav() {
 
   if (!user) {
     return (
-      <nav role="navigation" aria-label="Main Navigation" className="w-full">
-        <Tabs value={pathname} className="w-full">
-          <TabsList className="w-full">
-            <TabsTrigger 
-              value="/auth" 
-              className={isActive('/auth') ? 'bg-primary text-primary-foreground' : ''}
-              asChild
-            >
-              <Link href="/auth">Login</Link>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <nav role="navigation" aria-label="Main Navigation" className="w-full flex justify-between items-center p-4">
+         <div className="flex gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setLoginOpen(true)}
+          >
+            Login
+          </Button>
+          <Button 
+            onClick={() => setSignupOpen(true)}
+          >
+            Sign Up
+          </Button>
+          
+          <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
+          <SignUpDialog open={signupOpen} onOpenChange={setSignupOpen} />
+        </div>
       </nav>
     );
   }

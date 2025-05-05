@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "baseUrl": ".", // Required
+    "baseUrl": "./", // Required
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,

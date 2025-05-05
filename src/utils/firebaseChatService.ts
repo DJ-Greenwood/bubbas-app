@@ -2,9 +2,12 @@
 'use client';
 
 import { httpsCallable } from "firebase/functions";
-import { functions } from './firebaseClient'; // 👈 correct initialized Firebase
+import { functions, db, auth } from './firebaseClient'; // Import db and auth
+import { getDoc, doc } from 'firebase/firestore'; // Import Firestore methods
 import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import detectEmotion function
 import { Emotion } from '@/components/emotion/emotionAssets';
+import { UserProfileData } from '@/types/UserProfileData'; // Import UserProfileData type
+
 const callOpenAI = httpsCallable(functions, "callOpenAI");
 
 // Structure of the expected return from callOpenAI
@@ -83,34 +86,6 @@ const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
   }
 };
 
-// 💬 Continue conversation with context via Firebase Function
-const startEmotionalChat = async (question: string): Promise<OpenAIResponse> => {
-  console.log("[startEmotionalChat] Received question:", question);
-  conversationHistory.push({ role: "user", content: question });
-
-  try {
-    console.log("[startEmotionalChat] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
-    const response = await callOpenAI({
-      messages: conversationHistory,
-      model: openai_model,
-      maxTokens: 1000,
-    });
-
-    const data = response.data as OpenAIResponse;
-    const assistantReply = data.reply || "No response generated";
-    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-    console.log("[startEmotionalChat] Received response:", assistantReply, "Tokens:", usage);
-
-    conversationHistory.push({ role: "assistant", content: assistantReply });
-
-    return { reply: assistantReply, usage };
-  } catch (error) {
-    console.error("[startEmotionalChat] Error while calling Firebase Callable Function:", error);
-    throw error;
-  }
-};
-
 // 🧸 Start emotional support session with a custom system prompt and return Bubba's first message
 const startEmotionalSupportSession = async (): Promise<{ reply: string; usage: OpenAIUsage; emotion: Emotion }> => {
   const emotionalPrompt = `
@@ -157,12 +132,35 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
   }
 };
 
+// 🧑‍💻 Get user profile to check TTS settings and other features
+const getUserProfile = async (): Promise<UserProfileData | null> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      return userSnap.data() as UserProfileData;
+    } else {
+      console.error('No user profile found');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+};
+
 const firebaseChatService = {
   resetConversation,
   askQuestion,
   generateResponse,
   startEmotionalSupportSession,
-  startEmotionalChat,
+  getUserProfile,
 };
 
 export default firebaseChatService;

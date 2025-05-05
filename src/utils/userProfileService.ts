@@ -1,84 +1,217 @@
 // src/utils/userProfileService.ts
-'use client';
-
-import { db, auth } from '@/utils/firebaseClient';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  setDoc, 
+  Timestamp,
+  serverTimestamp
+} from 'firebase/firestore';
+import { db, auth } from './firebaseClient';
 import { UserProfileData } from '@/types/UserProfileData';
-import { encryptData } from '@/utils/encryption';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
 
-// Create new user profile
-export async function createNewUserProfile(uid: string, email: string, passphrase: string) {
-  const now = new Date().toISOString();
-
-  const userProfile: UserProfileData = {
-    email,
-    createdAt: now,
-    agreedTo: {
-      terms: now,
-      privacy: now,
-      ethics: now,
-    },
-    preferences: {
-      username: '',
-      phoneNumber: '',
-      tone: 'neutral',
-      theme: 'light',
-      emotionCharacterSet: 'Bubba',
-      emotionIconSize: '64',
-      localStorageEnabled: true,
-      security:{
-      passPhrase: encryptData({ key: passphrase }, passphrase),
-      }
-    },
-    usage: {
-      tokens: {
-        lifetime: 0,
-        monthly: {},
-      },
-      voiceChars: {
-        tts: { lifetime: 0, monthly: {} },
-        stt: { lifetime: 0, monthly: {} },
-      },
-    },
-    subscription: {
-      tier: 'free',
-      activationDate: now,
-      expirationDate: '',
-    },
-    features: {
-      memory: true,
-      tts: true,
-      stt: true,
-      emotionalInsights: true,
-    },
-  };
-
-  const userProfileRef = doc(db, 'users', uid);
-  await setDoc(userProfileRef, userProfile);
-
-  console.log(`✅ Created new user profile for UID: ${uid}`);
-}
-
-// Fetch user profile
+/**
+ * Fetch the user profile from Firestore
+ */
 export const fetchUserProfile = async (): Promise<UserProfileData | null> => {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return null;
-
-  const userRef = doc(db, 'users', currentUser.uid);
-  const userSnap = await getDoc(userRef);
-
-  if (userSnap.exists()) {
-    return userSnap.data() as UserProfileData;
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      return userSnap.data() as UserProfileData;
+    } else {
+      console.error('No user profile found');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    throw error;
   }
-
-  return null;
 };
 
-// Update user profile
+/**
+ * Update user profile in Firestore
+ */
 export const updateUserProfile = async (updates: Partial<UserProfileData>): Promise<void> => {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return;
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    
+    // Add last updated timestamp
+    const updatesWithTimestamp = {
+      ...updates,
+      updatedAt: serverTimestamp()
+    };
+    
+    await updateDoc(userRef, updatesWithTimestamp);
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
+  }
+};
 
-  const userRef = doc(db, 'users', currentUser.uid);
-  await updateDoc(userRef, updates);
+/**
+ * Create a new user profile in Firestore
+ */
+export const createUserProfile = async (user: string, trimmedEmail: string, trimmedPassphrase: string): Promise<UserProfileData> => {
+  if (!user) {
+    throw new Error('User is not authenticated');
+  }  
+ 
+  try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User is not authenticated');
+      }
+      
+      const now = Timestamp.now();
+      
+      // Default user profile data
+      const newUserProfile: UserProfileData = {
+        uid: user.uid,
+        email: trimmedEmail,
+
+        createdAt: now,
+        subscription: {
+          tier: 'free',
+          activationDate: now,
+          status: 'active'
+        },
+        features: {
+          emotionalInsights: true,
+          memory: false,
+          tts: false,
+          stt: false
+        },
+        preferences: {
+          username: '', // Empty string as default
+          phoneNumber: '', // Empty string as default
+          security: {
+            passphrase: trimmedPassphrase,  
+          },
+          timezone: 'UTC', // Default timezone
+          localStorageEnabled: true, // Default to enabled
+          emotionCharacterSet: 'Bubba' as EmotionCharacterKey, // Default character
+          emotionIconSize: 32, // Default size
+          theme: 'system', // Default theme
+          ttsVoice: '', // Empty by default
+          ttsRate: 1.0, // Default speech rate
+          ttsPitch: 1.0, // Default pitch
+          ttsAutoplay: false // Default to not auto-play
+        },
+        usage: {
+          totalTokens: 0,
+          monthlyTokens: 0,
+          resetDate: now,
+          chatsToday: 0,
+          lastChatDate: now
+        }
+      };
+      
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, newUserProfile);
+      
+      return newUserProfile;
+    } catch (error) {
+      console.error('Error creating user profile:', error);
+      throw error;
+    }
+};
+
+/**
+ * Enable or disable a specific feature for the user
+ */
+export const toggleFeature = async (featureName: keyof UserProfileData['features'], enabled: boolean): Promise<void> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    
+    await updateDoc(userRef, {
+      [`features.${featureName}`]: enabled,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error(`Error toggling ${featureName} feature:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Update TTS preferences
+ */
+export const updateTTSPreferences = async (
+  preferences: {
+    ttsVoice?: string;
+    ttsRate?: number;
+    ttsPitch?: number;
+    ttsAutoplay?: boolean;
+  }
+): Promise<void> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    
+    // Create an update object with only the provided preferences
+    const updates: Record<string, any> = {};
+    
+    Object.entries(preferences).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updates[`preferences.${key}`] = value;
+      }
+    });
+    
+    // Add updated timestamp
+    updates.updatedAt = serverTimestamp();
+    
+    // Only update if there are changes
+    if (Object.keys(updates).length > 1) { // > 1 because we always have updatedAt
+      await updateDoc(userRef, updates);
+    }
+  } catch (error) {
+    console.error('Error updating TTS preferences:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update theme preference
+ */
+export const updateThemePreference = async (
+  theme: 'light' | 'dark' | 'system'
+): Promise<void> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    
+    await updateDoc(userRef, {
+      'preferences.theme': theme,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating theme preference:', error);
+    throw error;
+  }
 };

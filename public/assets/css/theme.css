@@ -1,0 +1,127 @@
+/* Theme CSS Variables */
+
+:root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    
+    --radius: 0.5rem;
+    
+    /* Bubba Theme Colors */
+    --bubba-blue: 215 100% 50%;
+    --bubba-light-blue: 195 100% 90%;
+    --bubba-purple: 260 100% 65%;
+    --bubba-green: 130 70% 50%;
+    --bubba-yellow: 40 100% 60%;
+    --bubba-red: 0 100% 60%;
+  }
+  
+  [data-theme="dark"] {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    
+    /* Bubba Theme Colors - Dark Mode Variations */
+    --bubba-blue: 215 100% 60%;
+    --bubba-light-blue: 195 100% 70%;
+    --bubba-purple: 260 100% 75%;
+    --bubba-green: 130 70% 45%;
+    --bubba-yellow: 40 100% 55%;
+    --bubba-red: 0 100% 65%;
+  }
+  
+  /* Theme Transition */
+  * {
+    @apply transition-colors duration-200;
+  }
+  
+  .disable-transitions * {
+    transition: none !important;
+  }
+  
+  /* Helper classes for using the theme variables */
+  .bg-background {
+    background-color: hsl(var(--background));
+  }
+  
+  .text-foreground {
+    color: hsl(var(--foreground));
+  }
+  
+  .border-border {
+    border-color: hsl(var(--border));
+  }
+  
+  /* Bubba theme specific helper classes */
+  .bg-bubba-blue {
+    background-color: hsl(var(--bubba-blue));
+  }
+  
+  .text-bubba-blue {
+    color: hsl(var(--bubba-blue));
+  }
+  
+  .bg-bubba-light-blue {
+    background-color: hsl(var(--bubba-light-blue));
+  }
+  
+  .text-bubba-light-blue {
+    color: hsl(var(--bubba-light-blue));
+  }
+  
+  /* For nested elements that need special handling in dark mode */
+  [data-theme="dark"] .dark-mode-invert {
+    filter: invert(1);
+  }
+  
+  [data-theme="dark"] .dark-mode-dim {
+    opacity: 0.8;
+  }

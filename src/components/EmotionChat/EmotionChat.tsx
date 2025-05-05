@@ -7,7 +7,7 @@ import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices';
+import { getPassPhrase } from '@/utils/chatServices';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import firebaseChatService from '@/utils/firebaseChatService';
 import * as chatService from '@/utils/chatServices';
@@ -52,7 +52,7 @@ const EmotionChat = () => {
       if (!user) return;
       
       try {
-        const phrase = await fetchPassPhrase();
+        const phrase = await getPassPhrase();
         if (phrase) {
           setPassPhrase(phrase);
         }

@@ -5,20 +5,48 @@ import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPassPhrase } from '@/utils/chatServices';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const LoginComponent = () => {
+interface LoginDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const router = useRouter();
 
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setStep(0);
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setError(null);
+  };
+
+  const handleDialogChange = (open: boolean) => {
+    if (!open) {
+      resetForm();
+    }
+    onOpenChange(open);
+  };
 
   const handleLogin = async () => {
     try {
@@ -28,13 +56,14 @@ const LoginComponent = () => {
       if (user) {
         setUserUID(user.uid);
         
-        const phrase = await fetchPassPhrase();
+        const phrase = await getPassPhrase();
         if (!phrase) {
           console.warn("No passphrase set. User might need to update preferences.");
         }
 
         console.log("✅ User logged in successfully");
-        router.push("/authorize-device");
+        handleDialogChange(false);
+        router.push("/");
       }
     } catch (error: any) {
       setError(error.message || "Login failed");
@@ -43,10 +72,20 @@ const LoginComponent = () => {
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step === 1) {
+    setError(null);
+
+    if (step === 0) {
+      if (!email) {
+        setError("Please enter your email address");
+        return;
+      }
+      setStep(1);
+    } else if (step === 1) {
+      if (!password) {
+        setError("Please enter your password");
+        return;
+      }
       await handleLogin();
-    } else {
-      setStep(step + 1);
     }
   };
 
@@ -55,9 +94,9 @@ const LoginComponent = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 max-w-md">
-      <Card className="mx-auto">
-        <CardHeader>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
           <div className="flex items-center gap-4">
             <img 
               src="/assets/images/emotions/Bubba/default.jpg" 
@@ -65,16 +104,17 @@ const LoginComponent = () => {
               className="w-16 h-16 object-cover rounded-full"
             />
             <div>
-              <CardTitle className="text-2xl">
+              <DialogTitle className="text-2xl">
                 {new Date().getHours() < 12 ? "Good morning" : "Good evening"}!
-              </CardTitle>
-              <CardDescription>
+              </DialogTitle>
+              <DialogDescription>
                 It's Bubba. Let's get you logged in!
-              </CardDescription>
+              </DialogDescription>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </DialogHeader>
+        
+        <div className="py-4">
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -112,26 +152,36 @@ const LoginComponent = () => {
               </div>
             )}
           </form>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          {step > 0 && (
+        </div>
+        
+        <DialogFooter className="flex justify-between sm:justify-between">
+          {step > 0 ? (
             <Button
               variant="outline"
               onClick={handleBack}
+              type="button"
             >
               ← Back
             </Button>
+          ) : (
+            <div></div> // Empty div to maintain layout
           )}
           <Button 
             onClick={handleNext}
-            className={step === 0 ? "ml-auto" : ""}
+            type="submit"
           >
             {step === 1 ? "Let's Go! →" : "Next →"}
           </Button>
-        </CardFooter>
-      </Card>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
+};
+
+// Export the legacy component for backward compatibility
+const LoginComponent = () => {
+  const [open, setOpen] = useState(true);
+  return <LoginDialog open={open} onOpenChange={setOpen} />;
 };
 
 export default LoginComponent;

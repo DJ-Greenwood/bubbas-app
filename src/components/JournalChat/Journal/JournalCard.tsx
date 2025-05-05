@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '@/types/JournalEntry';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { decryptField } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices';
+import { getPassPhrase } from '@/utils/chatServices';
+import JournalTTSButton from './JournalTTSButton';
+import { useSubscription } from '@/utils/subscriptionService';
 
 interface JournalCardProps {
   entry: JournalEntry;
@@ -14,81 +16,93 @@ interface JournalCardProps {
   onHardDelete?: () => void;
 }
 
-const JournalCard: React.FC<JournalCardProps> = ({ 
-  entry, 
-  onEdit, 
-  onSoftDelete, 
-  onRestore, 
-  onHardDelete 
+const JournalCard: React.FC<JournalCardProps> = ({
+  entry,
+  onEdit,
+  onSoftDelete,
+  onRestore,
+  onHardDelete,
 }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const [passPhrase, setPassPhrase] = useState('');
   const [decryptedUserText, setDecryptedUserText] = useState('[Loading]');
   const [decryptedBubbaReply, setDecryptedBubbaReply] = useState('[Loading]');
+  const [decryptionError, setDecryptionError] = useState(false);
+  const { subscription } = useSubscription();
 
   useEffect(() => {
     const decryptEntry = async () => {
-      const phrase = await fetchPassPhrase();
-      if (!phrase) {
-        console.error("No passphrase available");
-        return;
-      }
-      
-      setPassPhrase(phrase);
-
       try {
-        if (entry.encryptedUserText) {
-          // Handle both string and encrypted object types
-          const isEncryptedObject = typeof entry.encryptedUserText === 'string' && 
-            entry.encryptedUserText.startsWith('U2FsdGVk'); // Base64 prefix
+        const phrase = await getPassPhrase();
+        if (!phrase) {
+          console.error('No passphrase available');
+          setDecryptedUserText('[Encryption key not available]');
+          setDecryptedBubbaReply('[Encryption key not available]');
+          setDecryptionError(true);
+          return;
+        }
 
-          if (isEncryptedObject) {
-            const decryptedRaw = decryptField(entry.encryptedUserText, phrase);
-            try {
-              const parsed = JSON.parse(decryptedRaw);
-              setDecryptedUserText(parsed.userText || '[Unreadable]');
-            } catch (jsonError) {
-              // If not JSON, use the raw text
-              setDecryptedUserText(decryptedRaw || '[Unreadable]');
+        // Reset error state
+        setDecryptionError(false);
+
+        // Decrypt user text
+        try {
+          if (entry.encryptedUserText) {
+            const isEncryptedObject =
+              typeof entry.encryptedUserText === 'string' &&
+              entry.encryptedUserText.startsWith('U2FsdGVk');
+
+            if (isEncryptedObject) {
+              const decryptedRaw = decryptField(entry.encryptedUserText, phrase);
+              try {
+                const parsed = JSON.parse(decryptedRaw);
+                setDecryptedUserText(parsed.userText || '[Unreadable]');
+              } catch (jsonError) {
+                setDecryptedUserText(decryptedRaw || '[Unreadable]');
+              }
+            } else {
+              setDecryptedUserText(entry.encryptedUserText);
             }
           } else {
-            // If it's already decrypted (from loadChats)
-            setDecryptedUserText(entry.encryptedUserText);
+            setDecryptedUserText('[No content]');
           }
-        } else {
-          setDecryptedUserText('[No content]');
+        } catch (error) {
+          console.warn('Failed to decrypt user text:', error);
+          setDecryptedUserText('[Decryption Error]');
+          setDecryptionError(true);
         }
-      } catch (error) {
-        console.warn('Failed to decrypt user text:', error);
-        setDecryptedUserText('[Decryption Error]');
-      }
 
-      try {
-        if (entry.encryptedBubbaReply) {
-          // Handle both string and encrypted object types
-          const isEncryptedObject = typeof entry.encryptedBubbaReply === 'string' && 
-            entry.encryptedBubbaReply.startsWith('U2FsdGVk'); // Base64 prefix
+        // Decrypt Bubba's reply
+        try {
+          if (entry.encryptedBubbaReply) {
+            const isEncryptedObject =
+              typeof entry.encryptedBubbaReply === 'string' &&
+              entry.encryptedBubbaReply.startsWith('U2FsdGVk');
 
-          if (isEncryptedObject) {
-            const decryptedRaw = decryptField(entry.encryptedBubbaReply, phrase);
-            try {
-              const parsed = JSON.parse(decryptedRaw);
-              setDecryptedBubbaReply(parsed.bubbaReply || '[Unreadable]');
-            } catch (jsonError) {
-              // If not JSON, use the raw text
-              setDecryptedBubbaReply(decryptedRaw || '[Unreadable]');
+            if (isEncryptedObject) {
+              const decryptedRaw = decryptField(entry.encryptedBubbaReply, phrase);
+              try {
+                const parsed = JSON.parse(decryptedRaw);
+                setDecryptedBubbaReply(parsed.bubbaReply || '[Unreadable]');
+              } catch (jsonError) {
+                setDecryptedBubbaReply(decryptedRaw || '[Unreadable]');
+              }
+            } else {
+              setDecryptedBubbaReply(entry.encryptedBubbaReply);
             }
           } else {
-            // If it's already decrypted (from loadChats)
-            setDecryptedBubbaReply(entry.encryptedBubbaReply);
+            setDecryptedBubbaReply('[No content]');
           }
-        } else {
-          setDecryptedBubbaReply('[No content]');
+        } catch (error) {
+          console.warn('Failed to decrypt Bubba reply:', error);
+          setDecryptedBubbaReply('[Decryption Error]');
+          setDecryptionError(true);
         }
       } catch (error) {
-        console.warn('Failed to decrypt Bubba reply:', error);
-        setDecryptedBubbaReply('[Decryption Error]');
+        console.error('Error in decryption process:', error);
+        setDecryptedUserText('[Error loading content]');
+        setDecryptedBubbaReply('[Error loading content]');
+        setDecryptionError(true);
       }
     };
 
@@ -105,37 +119,83 @@ const JournalCard: React.FC<JournalCardProps> = ({
     setEditing(false);
   };
 
+  const cancelEdit = () => {
+    setEditing(false);
+  };
+
   const cardStatus = entry.status === 'trash' ? 'trashed' : 'active';
 
+  // TTS content
+  const ttsContent = `Your entry: ${decryptedUserText}. Bubba's response: ${decryptedBubbaReply}`;
+
   return (
-    <div className={`bg-white rounded shadow-md p-4 space-y-4 ${cardStatus === 'trashed' ? 'border-l-4 border-red-400' : ''}`}>
+    <div
+      className={`bg-white rounded shadow-md p-4 space-y-4 ${
+        cardStatus === 'trashed' ? 'border-l-4 border-red-400' : ''
+      } ${decryptionError ? 'border-orange-300' : ''}`}
+    >
       <div className="flex justify-between items-center">
         <div className="text-sm text-gray-600">
-          {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown date'}
-          {entry.lastEdited && <span className="ml-2 text-blue-500 text-xs">(Edited)</span>}
+          {entry.timestamp
+            ? new Date(entry.timestamp).toLocaleString()
+            : 'Unknown date'}
+          {entry.lastEdited && (
+            <span className="ml-2 text-blue-500 text-xs">(Edited)</span>
+          )}
         </div>
-        {entry.emotion && <EmotionIcon emotion={entry.emotion}/>}
+        {entry.emotion && <EmotionIcon emotion={entry.emotion} />}
       </div>
 
+      {decryptionError && (
+        <div className="bg-orange-50 text-orange-800 p-2 rounded text-sm">
+          There was an issue decrypting this entry. The passphrase may have changed.
+        </div>
+      )}
+
       {editing ? (
-        <textarea
-          className="w-full p-2 border rounded"
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          rows={3}
-        />
+        <div className="space-y-2">
+          <textarea
+            className="w-full p-2 border rounded"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            rows={3}
+          />
+          <div className="flex space-x-2">
+            <button
+              onClick={saveEdit}
+              className="bg-green-500 text-white px-3 py-1 rounded"
+            >
+              Save
+            </button>
+            <button
+              onClick={cancelEdit}
+              className="bg-gray-300 text-gray-800 px-3 py-1 rounded"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : (
         <>
-          <p><strong>You:</strong> {decryptedUserText}</p>
-          <p><strong>Bubba:</strong> {decryptedBubbaReply}</p>
+          <p>
+            <strong>You:</strong> {decryptedUserText}
+          </p>
+          <p>
+            <strong>Bubba:</strong> {decryptedBubbaReply}
+          </p>
         </>
+      )}
+
+      {subscription.tier !== 'free' && (
+        <JournalTTSButton text={ttsContent} size="sm" />
       )}
 
       {entry.usage && (
         <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
-          <span>📜 Tokens: Prompt {entry.usage.promptTokens || 0} | 
-            Completion {entry.usage.completionTokens || 0} | 
-            Total {entry.usage.totalTokens || 0}
+          <span>
+            📜 Tokens: Prompt {entry.usage.promptTokens || 0} | Completion{' '}
+            {entry.usage.completionTokens || 0} | Total{' '}
+            {entry.usage.totalTokens || 0}
           </span>
           {entry.status === 'trash' && (
             <span className="text-red-500">In Trash</span>
@@ -144,33 +204,30 @@ const JournalCard: React.FC<JournalCardProps> = ({
       )}
 
       <div className="flex gap-2 mt-3">
-        {editing ? (
-          <button onClick={saveEdit} className="bg-green-500 text-white px-3 py-1 rounded">
-            Save
+        {!editing && onEdit && !decryptionError && (
+          <button
+            onClick={handleEdit}
+            className="bg-blue-500 text-white px-3 py-1 rounded"
+          >
+            Edit
           </button>
-        ) : (
-          onEdit && (
-            <button onClick={handleEdit} className="bg-blue-500 text-white px-3 py-1 rounded">
-              Edit
-            </button>
-          )
         )}
 
         {onSoftDelete && (
-          <button 
-            onClick={onSoftDelete} 
+          <button
+            onClick={onSoftDelete}
             className="bg-yellow-500 text-white px-3 py-1 rounded flex items-center gap-1"
             title="Move to Trash"
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             >
               <path d="M3 6h18"></path>
@@ -180,22 +237,22 @@ const JournalCard: React.FC<JournalCardProps> = ({
             <span>Trash</span>
           </button>
         )}
-        
+
         {onRestore && (
-          <button 
-            onClick={onRestore} 
+          <button
+            onClick={onRestore}
             className="bg-green-500 text-white px-3 py-1 rounded flex items-center gap-1"
             title="Restore from Trash"
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             >
               <path d="M3 2v6h6"></path>
@@ -204,22 +261,22 @@ const JournalCard: React.FC<JournalCardProps> = ({
             <span>Restore</span>
           </button>
         )}
-        
+
         {onHardDelete && (
-          <button 
-            onClick={onHardDelete} 
+          <button
+            onClick={onHardDelete}
             className="bg-red-600 text-white px-3 py-1 rounded flex items-center gap-1"
             title="Delete Permanently"
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             >
               <path d="M18 6L6 18"></path>

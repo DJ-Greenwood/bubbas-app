@@ -16,6 +16,7 @@ import EmotionalInsightsCard from './cards/EmotionalInsightsCard';
 import MemoryFeatureCard from './cards/MemoryFeatureCard';
 import TTSFeatureCard from './cards/TTSFeatureCard';
 import STTFeatureCard from './cards/STTFeatureCard';
+import ThemeSettingsCard from './cards/ThemeSettingsCard';
 import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -64,11 +65,13 @@ const UpdatedUserProfile = () => {
             <TabsTrigger value="features">Features</TabsTrigger>
           </TabsList>
           
+          {/* Account Settings Section */}
           <TabsContent value="account" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <PersonalInfoCard user={userProfile} />
               <AgreementsCard user={userProfile} />
               <PreferencesCard user={userProfile} onUpdate={handleProfileUpdate} />
+              <ThemeSettingsCard user={userProfile} onUpdate={handleProfileUpdate} />
             </div>
           </TabsContent>
           

@@ -7,7 +7,7 @@ import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices';
+import { getPassPhrase } from '@/utils/chatServices';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import firebaseChatService from '@/utils/firebaseChatService';
 import * as chatService from '@/utils/chatServices';
@@ -32,6 +32,7 @@ const UpdatedEmotionChatPersist = () => {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { toast } = useToast();
   const { subscription } = useSubscription();
+  const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
 
   // Initialize Bubbas in emotional support mode
   useEffect(() => {
@@ -40,6 +41,9 @@ const UpdatedEmotionChatPersist = () => {
         const { reply, usage, emotion } = await firebaseChatService.startEmotionalSupportSession();
         setResponse(reply);
         setEmotion(emotion);
+        
+        // Initialize chat history with system message
+        setChatHistory([{ role: "assistant", content: reply }]);
         
         // Save token usage data regardless of journal entries
         if (usage) {
@@ -85,17 +89,26 @@ const UpdatedEmotionChatPersist = () => {
       if (!user) return;
       
       try {
-        const phrase = await fetchPassPhrase();
+        const phrase = await getPassPhrase();
         if (phrase) {
           setPassPhrase(phrase);
+        } else {
+          // If no passphrase exists, generate one
+          console.log("No passphrase found, you may need to create one");
+          // You might want to add logic to create a passphrase if needed
         }
       } catch (error) {
         console.error("Failed to fetch passphrase:", error);
+        toast({
+          title: "Encryption Error",
+          description: "Failed to retrieve your encryption key. Some features may be limited.",
+          variant: "destructive"
+        });
       }
     };
     
     init();
-  }, [user]);
+  }, [user, toast]);
 
   // Load journal entries when both user and passphrase are available
   useEffect(() => {
@@ -112,6 +125,37 @@ const UpdatedEmotionChatPersist = () => {
       setJournalEntries(loaded);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
+      toast({
+        title: "Loading Error",
+        description: "Failed to load your previous conversations.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Function to ensure chat is saved properly
+  const saveChatToJournal = async (userMessage: string, aiResponse: string, usageData: any) => {
+    if (!user || !passPhrase) {
+      console.warn("Cannot save chat: user or passphrase missing");
+      return false;
+    }
+    
+    try {
+      // Save the chat using chatService
+      await chatService.saveChat(userMessage, aiResponse, usageData, passPhrase);
+      console.log("Chat saved successfully");
+      
+      // Reload journal entries to show the new entry
+      await loadJournalEntries();
+      return true;
+    } catch (error) {
+      console.error("Error saving chat to journal:", error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save your conversation. Please try again.",
+        variant: "destructive"
+      });
+      return false;
     }
   };
 
@@ -126,7 +170,17 @@ const UpdatedEmotionChatPersist = () => {
     }
 
     setIsLoading(true);
-    setResponse("");
+    
+    // Keep the current response visible until new one arrives
+    const currentResponse = response;
+    
+    // Update chat history with user input
+    const updatedHistory = [
+      ...chatHistory,
+      { role: "user", content: userInput }
+    ];
+    setChatHistory(updatedHistory);
+    
     setLimitError(null);
 
     try {
@@ -138,6 +192,12 @@ const UpdatedEmotionChatPersist = () => {
       const { reply, usage } = await firebaseChatService.askQuestion(userInput);
       setResponse(reply);
       
+      // Update chat history with AI response
+      setChatHistory([
+        ...updatedHistory,
+        { role: "assistant", content: reply }
+      ]);
+      
       // Check if this was a limit error message
       if (reply.includes("limit") && reply.includes("upgrade")) {
         setLimitError(reply);
@@ -148,52 +208,37 @@ const UpdatedEmotionChatPersist = () => {
         });
       } else {
         // Save to journal if we have passphrase and not hitting limits
-        if (user && passPhrase) {
+        const saveSuccess = await saveChatToJournal(userInput, reply, usage);
+        
+        // Save token usage data in separate collection (independent of journal entries)
+        if (usage) {
           try {
-            await chatService.saveChat(userInput, reply, usage, passPhrase);
+            // Get the journal entry ID if saving was successful
+            const journalEntryId = saveSuccess && journalEntries.length > 0 
+              ? journalEntries[0].timestamp 
+              : undefined;
             
-            // Reload journal entries to show the new entry
-            await loadJournalEntries();
-            
-            // Get the new journal entry ID (latest entry)
-            const journalEntryId = journalEntries.length > 0 ? journalEntries[0].timestamp : undefined;
-            
-            // Save token usage data in separate collection (independent of journal entries)
-            if (usage) {
-              await saveTokenUsage(
-                usage,
-                'emotion',
-                journalEntryId, // Link to journal entry for reference
-                userInput // Include truncated prompt for reference
-              );
-            }
-          } catch (err) {
-            console.error("Error saving journal entry:", err);
-            // Still save the token usage even if journal save fails
-            if (usage) {
-              await saveTokenUsage(
-                usage,
-                'emotion',
-                undefined, // No journal entry ID since save failed
-                userInput // Include truncated prompt for reference
-              );
-            }
-          }
-        } else {
-          // If we don't have passphrase, just save token usage
-          if (usage) {
             await saveTokenUsage(
               usage,
               'emotion',
-              undefined, // No journal entry ID
+              journalEntryId, // Link to journal entry for reference
               userInput // Include truncated prompt for reference
             );
+          } catch (tokenErr) {
+            console.error("Error saving token usage:", tokenErr);
           }
         }
       }
     } catch (error) {
       console.error("Failed to submit:", error);
       setResponse("Oops! Something went wrong. Bubba is trying again.");
+      
+      // Update chat history with error message
+      setChatHistory([
+        ...updatedHistory,
+        { role: "assistant", content: "Oops! Something went wrong. Bubba is trying again." }
+      ]);
+      
       toast({
         title: "Error",
         description: "There was a problem processing your message. Please try again.",
@@ -234,6 +279,25 @@ const UpdatedEmotionChatPersist = () => {
         </Alert>
       )}
 
+      {/* Chat history display */}
+      <div className="chat-history mt-4 space-y-4 max-h-96 overflow-y-auto p-2">
+        {chatHistory.map((message, index) => (
+          <div 
+            key={index} 
+            className={`p-3 rounded-lg ${
+              message.role === 'user' 
+                ? 'bg-blue-100 ml-8' 
+                : 'bg-white mr-8'
+            }`}
+          >
+            <div className="font-medium mb-1">
+              {message.role === 'user' ? 'You:' : 'Bubba:'}
+            </div>
+            <div>{message.content}</div>
+          </div>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <textarea
           className="w-full p-3 rounded border text-base"
@@ -267,12 +331,6 @@ const UpdatedEmotionChatPersist = () => {
       {emotion && (
         <div className="emotion-display mt-4 flex items-center gap-2">
           <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion}/>
-        </div>
-      )}
-
-      {response && !limitError && (
-        <div className="response-display mt-4 p-4 bg-white rounded-lg shadow">
-          <strong>Bubba:</strong> {response}
         </div>
       )}
 
