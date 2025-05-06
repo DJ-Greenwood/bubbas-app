@@ -18,7 +18,11 @@ const PersonalInfoCard: React.FC<{ user: UserProfileData }> = ({ user }) => {
       <p><strong>Email:</strong> {user.email}</p>
       <p><strong>Username:</strong> {user.preferences.username || '[No username set]'}</p>
       <p><strong>Phone Number:</strong> {user.preferences.phoneNumber || '[No phone number set]'}</p>
-      <p><strong>Created At:</strong> {new Date(user.createdAt).toLocaleString()}</p>
+      <p><strong>Created At:</strong> {user.createdAt instanceof Date 
+        ? user.createdAt.toLocaleString() 
+        : user.createdAt.toDate?.() 
+          ? user.createdAt.toDate().toLocaleString()
+          : user.createdAt.toDate().toLocaleString()}</p>
     </div>
   );
 };

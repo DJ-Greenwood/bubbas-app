@@ -8,7 +8,11 @@ const SubscriptionCard: React.FC<{ user: UserProfileData }> = ({ user }) => (
     <h2 className="text-2xl font-semibold mb-4">Subscription</h2>
     <p className="text-gray-700"><strong>Tier:</strong> {user.subscription.tier}</p>
     <p className="text-gray-700"><strong>Activation Date:</strong> {parseFirestoreDate(user.subscription.activationDate).toLocaleDateString()}</p>
-    <p className="text-gray-700"><strong>Expiration Date:</strong> {parseFirestoreDate(user.subscription.activationDate).toLocaleDateString()}</p>
+    <p className="text-gray-700"><strong>Expiration Date:</strong> {
+      user.subscription.expirationDate 
+        ? parseFirestoreDate(user.subscription.expirationDate).toLocaleDateString() 
+        : 'No expiration date'
+    }</p>
   </div>
 );
 

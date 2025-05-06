@@ -7,7 +7,7 @@ import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { fetchPassPhrase } from '@/utils/chatServices';
+import { getPassPhrase } from '@/utils/chatServices';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import enhancedChatService from '@/utils/enhancedChatService';
 import * as chatService from '@/utils/chatServices';
@@ -75,7 +75,7 @@ const UpdatedEmotionChat = () => {
       if (!user) return;
       
       try {
-        const phrase = await fetchPassPhrase();
+        const phrase = await getPassPhrase();
         if (phrase) {
           setPassPhrase(phrase);
         }
@@ -267,7 +267,10 @@ const UpdatedEmotionChat = () => {
               Unlock higher usage limits and more features
             </DialogDescription>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+          <SubscriptionSelector 
+            onClose={() => setShowUpgradeDialog(false)} 
+            currentTier={subscription.tier} 
+          />
         </DialogContent>
       </Dialog>
     </div>

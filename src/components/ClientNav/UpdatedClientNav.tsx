@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
-import { auth } from '../../../firebase';
+import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -55,68 +55,68 @@ export default function ClientNav() {
   }
 
   return (
-    <nav role="navigation" aria-label="Main Navigation" className="w-full">
+    <nav role="navigation" aria-label="Main Navigation" className="w-full overflow-x-auto">
       <Tabs value={pathname} className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger 
-            value="/" 
-            className={isActive('/') ? 'bg-primary text-primary-foreground' : ''}
+        <TabsList className="flex flex-wrap justify-center gap-2 p-2 sm:justify-start">
+            <TabsTrigger
+            value="/"
+            className={`min-w-[80px] text-center ${isActive('/') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/">Home</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="/ChatBasic" 
-            className={isActive('/ChatBasic') ? 'bg-primary text-primary-foreground' : ''}
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/ChatBasic"
+            className={`min-w-[80px] text-center ${isActive('/ChatBasic') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/ChatBasic">Chat Basic</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="/EmotionChat" 
-            className={isActive('/EmotionChat') ? 'bg-primary text-primary-foreground' : ''}
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/EmotionChat"
+            className={`min-w-[80px] text-center ${isActive('/EmotionChat') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/EmotionChat">Chat</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="/Journal" 
-            className={isActive('/Journal') ? 'bg-primary text-primary-foreground' : ''}
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/Journal"
+            className={`min-w-[80px] text-center ${isActive('/Journal') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/Journal">Journal</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="/dashboard" 
-            className={isActive('/dashboard') ? 'bg-primary text-primary-foreground' : ''}
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/dashboard"
+            className={`min-w-[80px] text-center ${isActive('/dashboard') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/dashboard">Dashboard</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="/profile" 
-            className={isActive('/profile') ? 'bg-primary text-primary-foreground' : ''}
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/profile"
+            className={`min-w-[80px] text-center ${isActive('/profile') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild
-          >
+            >
             <Link href="/profile">Profile</Link>
-          </TabsTrigger>
-          
-          <TabsTrigger 
-            value="signout" 
-            className="text-red-600 hover:text-red-700"
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="signout"
+            className="min-w-[80px] text-center text-red-600 hover:text-red-700"
             onClick={() => {
               auth.signOut().then(() => {
-                window.location.href = "/";
+              window.location.href = "/";
               });
             }}
-          >
+            >
             Sign Out
-          </TabsTrigger>
+            </TabsTrigger>
         </TabsList>
       </Tabs>
     </nav>

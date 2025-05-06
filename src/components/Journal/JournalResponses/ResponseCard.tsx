@@ -9,16 +9,19 @@ interface OpenAIUsage {
 interface ResponseCardProps {
     input: string;
     response: string;
+    className?: string; // Add className as an optional property
     usage?: OpenAIUsage | null;
 }
 
-const ResponseCard: React.FC<ResponseCardProps> = ({input, response, usage }) => {
+const ResponseCard: React.FC<ResponseCardProps> = ({input, response, className, usage }) => {
   if (!response) return null;
 
   return (
     <div className="response-display mt-4 relative bg-white p-4 rounded shadow">
+      <strong>Your:</strong>
+      <div className="text-gray-700">{input}</div>
         <strong>Bubba's response:</strong>
-      <div className="mt-2">{response}</div>
+      <div className={className}>{response}</div>
       {usage && (
         <div className="text-xs text-gray-500 absolute bottom-2 right-2">
           Tokens: {usage.totalTokens} (Prompt: {usage.promptTokens}, Completion: {usage.completionTokens})

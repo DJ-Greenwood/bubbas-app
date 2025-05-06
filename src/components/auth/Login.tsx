@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/chatServices';
+import { setUserUID, getMasterKey, getPassPhrase } from '@/utils/encryption';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -56,9 +55,22 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
       if (user) {
         setUserUID(user.uid);
         
+        // Get user's passphrase
         const phrase = await getPassPhrase();
         if (!phrase) {
           console.warn("No passphrase set. User might need to update preferences.");
+        }
+        
+        // Ensure encryption key is loaded into sessionStorage
+        try {
+          await getMasterKey();
+        } catch (error: any) {
+          if (error.message === "ENCRYPTION_KEY_REQUIRED") {
+            console.warn("🛑 Master key missing. Prompt user for recovery.");
+            // You can redirect to recovery page or show a modal here
+            router.push("/settings/security/recovery");
+            return;
+          }
         }
 
         console.log("✅ User logged in successfully");

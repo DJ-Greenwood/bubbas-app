@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '@/types/JournalEntry';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
-import { decryptField } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/chatServices';
+import { decryptField } from '@/utils/encryption'; // Import directly from encryption.ts
 import JournalTTSButton from './JournalTTSButton';
 import { useSubscription } from '@/utils/subscriptionService';
 
@@ -33,15 +32,6 @@ const JournalCard: React.FC<JournalCardProps> = ({
   useEffect(() => {
     const decryptEntry = async () => {
       try {
-        const phrase = await getPassPhrase();
-        if (!phrase) {
-          console.error('No passphrase available');
-          setDecryptedUserText('[Encryption key not available]');
-          setDecryptedBubbaReply('[Encryption key not available]');
-          setDecryptionError(true);
-          return;
-        }
-
         // Reset error state
         setDecryptionError(false);
 
@@ -53,7 +43,7 @@ const JournalCard: React.FC<JournalCardProps> = ({
               entry.encryptedUserText.startsWith('U2FsdGVk');
 
             if (isEncryptedObject) {
-              const decryptedRaw = decryptField(entry.encryptedUserText, phrase);
+              const decryptedRaw = await decryptField(entry.encryptedUserText);
               try {
                 const parsed = JSON.parse(decryptedRaw);
                 setDecryptedUserText(parsed.userText || '[Unreadable]');
@@ -80,7 +70,7 @@ const JournalCard: React.FC<JournalCardProps> = ({
               entry.encryptedBubbaReply.startsWith('U2FsdGVk');
 
             if (isEncryptedObject) {
-              const decryptedRaw = decryptField(entry.encryptedBubbaReply, phrase);
+              const decryptedRaw = await decryptField(entry.encryptedBubbaReply);
               try {
                 const parsed = JSON.parse(decryptedRaw);
                 setDecryptedBubbaReply(parsed.bubbaReply || '[Unreadable]');

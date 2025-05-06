@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, AlertCircle, CheckCircle } from 'lucide-react';
-import { getTokenUsageStats, getTokenUsageSummary } from '@/utils/tokenTrackingService';
+import { getTokenUsageStats, getTokenUsageSummary } from '@/utils/firebaseDataService';
 import { useSubscription } from '@/utils/subscriptionService';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
@@ -327,7 +327,10 @@ const UsageDashboard = () => {
               Choose the plan that best fits your needs
             </DialogDescription>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+          <SubscriptionSelector 
+            onClose={() => setShowUpgradeDialog(false)} 
+            currentTier={subscription.tier} 
+          />
         </DialogContent>
       </Dialog>
     </>

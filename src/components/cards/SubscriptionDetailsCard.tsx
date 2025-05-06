@@ -126,7 +126,7 @@ const SubscriptionDetailsCard = () => {
               Choose the plan that best fits your needs
             </DialogDescription>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setIsUpgradeOpen(false)} />
+          <SubscriptionSelector onClose={() => setIsUpgradeOpen(false)} currentTier={subscription.tier} />
         </DialogContent>
       </Dialog>
     </>

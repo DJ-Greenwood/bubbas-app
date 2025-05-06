@@ -70,7 +70,10 @@ const TTSToggle: React.FC<TTSToggleProps> = ({
               Text-to-Speech is available on Plus and Pro plans. Upgrade to enable this feature.
             </DialogDescription>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+          <SubscriptionSelector 
+            onClose={() => setShowUpgradeDialog(false)} 
+            currentTier={subscription.tier} 
+          />
         </DialogContent>
       </Dialog>
     </>

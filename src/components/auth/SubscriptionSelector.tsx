@@ -24,6 +24,7 @@ import { SUBSCRIPTION_TIERS, SubscriptionTier } from '@/utils/subscriptionServic
 
 interface SubscriptionSelectorProps {
   onClose?: () => void;
+  currentTier: SubscriptionTier;
 }
 
 const SubscriptionSelector: React.FC<SubscriptionSelectorProps> = ({ onClose }) => {

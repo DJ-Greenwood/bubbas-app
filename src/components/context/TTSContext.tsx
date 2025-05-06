@@ -6,6 +6,8 @@ import { auth } from '@/utils/firebaseClient';
 import { fetchUserProfile, updateTTSPreferences } from '@/utils/userProfileService';
 import { speakText, stopSpeaking, getAvailableVoices } from '@/utils/tts';
 import { useToast } from '@/hooks/use-toast';
+import { onSnapshot, doc } from 'firebase/firestore';
+import { db } from '@/utils/firebaseClient'; // Assuming you have a Firestore instance exported as `db`
 
 interface TTSContextType {
   isEnabled: boolean;
@@ -36,69 +38,93 @@ export const TTSProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const { toast } = useToast();
 
-  // Initialize TTS context based on user profile
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      
+      if (!currentUser) {
+        setIsEnabled(false);
+        setIsSpeaking(false);
+        return;
+      }
+
       if (currentUser) {
         try {
           // Load user profile
           const profile = await fetchUserProfile();
-          
+
           if (profile) {
-            // Set TTS enabled state
             setIsEnabled(profile.features.tts || false);
-            
-            // Set autoplay preference
             setIsAutoplayEnabled(profile.preferences.ttsAutoplay || false);
-            
-            // Set voice preferences
             if (profile.preferences.ttsVoice) {
               setVoicePreferenceState(profile.preferences.ttsVoice);
             }
-            
-            // Set rate preference
             if (profile.preferences.ttsRate) {
               setRateState(profile.preferences.ttsRate);
             }
-            
-            // Set pitch preference
             if (profile.preferences.ttsPitch) {
               setPitchState(profile.preferences.ttsPitch);
             }
           }
+
+          // Set up Firestore listener for real-time updates
+          const docRef = doc(db, 'users', currentUser.uid); // Adjust the path as needed
+          const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+            if (!docSnap.exists()) {
+              console.warn('TTS settings document does not exist');
+              return;
+            }
+
+            const data = docSnap.data();
+            if (data?.tts) {
+              const ttsSettings = data.tts;
+              setIsEnabled(ttsSettings.enabled || false);
+              setIsAutoplayEnabled(ttsSettings.autoplay || false);
+              if (ttsSettings.voice) {
+                setVoicePreferenceState(ttsSettings.voice);
+              }
+              if (ttsSettings.rate) {
+                setRateState(ttsSettings.rate);
+              }
+              if (ttsSettings.pitch) {
+                setPitchState(ttsSettings.pitch);
+              }
+            } else {
+              console.warn('TTS data is missing or malformed');
+            }
+          });
+
+          return () => {
+            unsubscribeSnapshot();
+          };
         } catch (error) {
-          console.error("Failed to load TTS preferences:", error);
+          console.error('Failed to load TTS preferences:', error);
         }
       }
     });
-    
+
     // Load available voices
-    getAvailableVoices().then(voices => {
+    getAvailableVoices().then((voices) => {
       setAvailableVoices(voices);
     });
-    
+
     return () => {
-      unsubscribe();
-      // Stop any ongoing speech when context is unmounted
+      unsubscribeAuth();
       stopSpeaking();
     };
   }, []);
 
-  // Speak text with current preferences
   const speak = (text: string) => {
     if (!isEnabled) {
       toast({
-        title: "TTS Disabled",
-        description: "Text-to-speech is not enabled in your preferences.",
-        variant: "destructive"
+        title: 'TTS Disabled',
+        description: 'Text-to-speech is not enabled in your preferences.',
+        variant: 'destructive',
       });
       return;
     }
-    
+
     setIsSpeaking(true);
-    
+
     speakText(text, {
       voiceName: voicePreference,
       rate,
@@ -107,78 +133,73 @@ export const TTSProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       onEnd: () => setIsSpeaking(false),
       onError: (error) => {
         setIsSpeaking(false);
-        console.error("TTS error:", error);
+        console.error('TTS error:', error);
         toast({
-          title: "Speech Error",
-          description: "There was a problem with text-to-speech. Please try again.",
-          variant: "destructive"
+          title: 'Speech Error',
+          description: 'There was a problem with text-to-speech. Please try again.',
+          variant: 'destructive',
         });
-      }
+      },
     });
   };
 
-  // Stop any ongoing speech
   const handleStopSpeaking = () => {
     stopSpeaking();
     setIsSpeaking(false);
   };
 
-  // Set voice preference and update in database
   const setVoicePreference = async (voice: string) => {
     try {
       setVoicePreferenceState(voice);
       await updateTTSPreferences({ ttsVoice: voice });
     } catch (error) {
-      console.error("Failed to update voice preference:", error);
+      console.error('Failed to update voice preference:', error);
       toast({
-        title: "Error",
-        description: "Failed to save voice preference.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save voice preference.',
+        variant: 'destructive',
       });
     }
   };
 
-  // Set rate preference and update in database
   const setRate = async (newRate: number) => {
     try {
       setRateState(newRate);
       await updateTTSPreferences({ ttsRate: newRate });
     } catch (error) {
-      console.error("Failed to update rate:", error);
+      console.error('Failed to update rate:', error);
       toast({
-        title: "Error",
-        description: "Failed to save speech rate preference.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save speech rate preference.',
+        variant: 'destructive',
       });
     }
   };
 
-  // Set pitch preference and update in database
   const setPitch = async (newPitch: number) => {
     try {
       setPitchState(newPitch);
       await updateTTSPreferences({ ttsPitch: newPitch });
     } catch (error) {
-      console.error("Failed to update pitch:", error);
+      console.error('Failed to update pitch:', error);
       toast({
-        title: "Error",
-        description: "Failed to save pitch preference.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save pitch preference.',
+        variant: 'destructive',
       });
     }
   };
 
-  // Toggle autoplay and update in database
   const toggleAutoplay = async (enabled: boolean) => {
     try {
       setIsAutoplayEnabled(enabled);
       await updateTTSPreferences({ ttsAutoplay: enabled });
     } catch (error) {
-      console.error("Failed to update autoplay setting:", error);
+      console.error('Failed to update autoplay setting:', error);
       toast({
-        title: "Error",
-        description: "Failed to save autoplay preference.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save autoplay preference.',
+        variant: 'destructive',
       });
     }
   };
@@ -196,23 +217,18 @@ export const TTSProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setVoicePreference,
     setRate,
     setPitch,
-    toggleAutoplay
+    toggleAutoplay,
   };
 
-  return (
-    <TTSContext.Provider value={contextValue}>
-      {children}
-    </TTSContext.Provider>
-  );
+  return <TTSContext.Provider value={contextValue}>{children}</TTSContext.Provider>;
 };
 
-// Custom hook to use the TTS context
 export const useTTS = (): TTSContextType => {
   const context = useContext(TTSContext);
-  
+
   if (context === undefined) {
     throw new Error('useTTS must be used within a TTSProvider');
   }
-  
+
   return context;
 };

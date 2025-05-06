@@ -9,13 +9,14 @@ import { Emotion } from '@/components/emotion/emotionAssets';
 import { setUserUID } from '@/utils/encryption';
 import { getPassPhrase } from '@/utils/chatServices';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
-import firebaseChatService from '@/utils/firebaseChatService';
+import { resetConversation, askQuestion, startEmotionalSupportSession, saveChat } from "@/utils/chatServices";
 import * as chatService from '@/utils/chatServices';
 import { JournalEntry } from '@/types/JournalEntry';
 
 const EmotionChat = () => {
   const [userInput, setUserInput] = useState("");
   const [emotion, setEmotion] = useState<Emotion | null>(null);
+
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
@@ -26,7 +27,7 @@ const EmotionChat = () => {
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        await firebaseChatService.startEmotionalSupportSession();
+        await startEmotionalSupportSession();
       } catch (error) {
         console.error("Failed to initialize chat service:", error);
       }
@@ -75,7 +76,7 @@ const EmotionChat = () => {
     if (!user || !passPhrase) return;
     
     try {
-      const loaded = await chatService.loadChats('active', passPhrase, user.uid);
+      const loaded = await chatService.loadChats('active');
       setJournalEntries(loaded);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
@@ -91,16 +92,17 @@ const EmotionChat = () => {
 
     try {
       // Detect emotion from user input
-      const detectedEmotion = await detectEmotion(userInput);
-      setEmotion(detectedEmotion);
+      const detectedEmotionText = await detectEmotion(userInput);
+      setEmotion(detectedEmotionText);
+
 
       // Get response from chat service
-      const { reply, usage } = await firebaseChatService.askQuestion(userInput);
+      const { reply, usage } = await askQuestion(userInput);
       setResponse(reply);
 
       // Save chat to database if user is authenticated
       if (user && passPhrase) {
-        await chatService.saveChat(userInput, reply, usage, passPhrase);
+        await saveChat(userInput, reply, detectedEmotionText, usage);
         // Reload journal entries to show the new entry
         await loadJournalEntries();
       }

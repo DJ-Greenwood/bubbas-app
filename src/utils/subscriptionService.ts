@@ -88,6 +88,12 @@ export interface SubscriptionData {
   trialEnds?: string;
 }
 
+interface SubscriptionSelectorProps {
+  // Existing properties
+  onClose: () => void;
+  currentTier: SubscriptionTier; // Add this property
+}
+
 // Get the user's current subscription tier
 export const getUserTier = async (): Promise<SubscriptionData> => {
   try {

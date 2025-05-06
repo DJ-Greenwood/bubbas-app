@@ -14,7 +14,7 @@ interface JournalTTSButtonProps {
   showLabel?: boolean;
   className?: string;
 }
-``
+
 const JournalTTSButton: React.FC<JournalTTSButtonProps> = ({
   text,
   size = 'md',
@@ -118,7 +118,10 @@ const JournalTTSButton: React.FC<JournalTTSButtonProps> = ({
             </DialogDescription>
           </DialogHeader>
           {subscription.tier === 'free' && (
-            <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+            <SubscriptionSelector 
+              onClose={() => setShowUpgradeDialog(false)} 
+              currentTier={subscription.tier} 
+            />
           )}
           {subscription.tier !== 'free' && (
             <div className="flex justify-end mt-4">

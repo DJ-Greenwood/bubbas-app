@@ -4,15 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/utils/firebaseClient';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { getPassPhrase } from '@/utils/chatServices';
-import { setUserUID } from '@/utils/encryption';
+import { getCurrentUserUid } from '@/utils/firebaseDataService';
+import { setUserUID, getMasterKey } from '@/utils/encryption'; // Use getMasterKey instead
 
 import { ReactNode } from 'react';
 
 const JournalLoader = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [phrase, setPassPhrase] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
@@ -36,16 +35,18 @@ const JournalLoader = ({ children }: { children: ReactNode }) => {
   // Initialize user data, passphrase, and user profile
   const initializeUserData = async (userId: string) => {
     try {
-      // Get passphrase for encryption
-      const phrase = await getPassPhrase();
-      if (phrase) {
-        setPassPhrase(phrase);
-      } else {
-        console.error("No passphrase found for user");
+      // Try to get the encryption master key
+      try {
+        await getMasterKey(); // Just check if we can get the master key
+      } catch (keyError) {
+        if (keyError instanceof Error && keyError.message === "ENCRYPTION_KEY_REQUIRED") {
+          setError("Encryption key not available. Please verify your security settings.");
+        } else {
+          console.error("Error getting master key:", keyError);
+          setError("Could not initialize encryption. Please check your security settings.");
+        }
       }
-            
-    }
-    catch (error) {
+    } catch (error) {
       console.error("Error initializing user data:", error);
       setError("Failed to initialize user data. Please try again.");
     } finally {

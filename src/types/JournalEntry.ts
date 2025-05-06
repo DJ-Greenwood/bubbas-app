@@ -17,6 +17,7 @@ export interface JournalEntry {
     completionTokens: number;
     totalTokens: number;
   };
+  detectedEmotionText?: string; // Added detected emotion to the journal entry
   emotionCharacterSet: EmotionCharacterKey; // Added character set to the journal entry
 
 

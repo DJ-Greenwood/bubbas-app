@@ -9,56 +9,46 @@ import { Emotion } from '@/components/emotion/emotionAssets';
 import { setUserUID } from '@/utils/encryption';
 import { getPassPhrase } from '@/utils/chatServices';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
-import firebaseChatService from '@/utils/firebaseChatService';
-import * as chatService from '@/utils/chatServices';
 import { JournalEntry } from '@/types/JournalEntry';
-import { saveTokenUsage } from '@/utils/tokenPersistenceService';
-import { useSubscription } from '@/utils/subscriptionService';
-import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/utils/subscriptionService";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
+import { saveJournalEntry, getJournalEntries, getUserEmotionCharacterSet } from '@/utils/firebaseDataService';
+import { askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
 
-const UpdatedEmotionChatPersist = () => {
+const UpdatedEmotionChat = () => {
   const [userInput, setUserInput] = useState("");
   const [emotion, setEmotion] = useState<Emotion | null>(null);
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [passPhrase, setPassPhrase] = useState<string>("");
+  const [passPhrase, setPassPhrase] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const { toast } = useToast();
   const { subscription } = useSubscription();
   const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
+  const { setCharacterSet } = useEmotionSettings();
+
+  
+  const [userCharacterSet, setUserCharacterSet] = useState<EmotionCharacterKey>('Bubba' as EmotionCharacterKey);
 
   // Initialize Bubbas in emotional support mode
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        const { reply, usage, emotion } = await firebaseChatService.startEmotionalSupportSession();
-        setResponse(reply);
-        setEmotion(emotion);
+        await startEmotionalSupportSession();
+        const initialMessage = "Hi there! I'm Bubba, your AI emotional support companion. How are you feeling today?";
+        setResponse(initialMessage);
         
         // Initialize chat history with system message
-        setChatHistory([{ role: "assistant", content: reply }]);
-        
-        // Save token usage data regardless of journal entries
-        if (usage) {
-          await saveTokenUsage(
-            usage,
-            'emotion',
-            undefined, // No journal entry ID for initialization
-            "session_start" // Marker for session initialization
-          );
-        }
-        
-        // Check if this was a limit error message
-        if (reply.includes("limit") && reply.includes("upgrade")) {
-          setLimitError(reply);
-        }
+        setChatHistory([{ role: "assistant", content: initialMessage }]);
       } catch (error) {
         console.error("Failed to initialize chat service:", error);
         toast({
@@ -83,32 +73,45 @@ const UpdatedEmotionChatPersist = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch passphrase
+  // Fetch passphrase and user character set
   useEffect(() => {
     const init = async () => {
       if (!user) return;
       
       try {
+        // Get passphrase first - this is critical for encryption
         const phrase = await getPassPhrase();
         if (phrase) {
           setPassPhrase(phrase);
+          console.log("✅ Passphrase successfully loaded");
         } else {
-          // If no passphrase exists, generate one
-          console.log("No passphrase found, you may need to create one");
-          // You might want to add logic to create a passphrase if needed
+          console.error("No passphrase returned from getPassPhrase()");
+          toast({
+            title: "Encryption Error",
+            description: "Failed to retrieve your encryption key. Journal entries cannot be saved.",
+            variant: "destructive"
+          });
+        }
+        
+        // Get user's preferred character set
+        const userPrefCharacterSet = await getUserEmotionCharacterSet();
+        if (userPrefCharacterSet) {
+          setUserCharacterSet(userPrefCharacterSet);
+          setCharacterSet(userPrefCharacterSet);
+          console.log(`✅ User character set loaded: ${userPrefCharacterSet}`);
         }
       } catch (error) {
-        console.error("Failed to fetch passphrase:", error);
+        console.error("Failed to fetch user data:", error);
         toast({
-          title: "Encryption Error",
-          description: "Failed to retrieve your encryption key. Some features may be limited.",
+          title: "Data Loading Error",
+          description: "Failed to retrieve your settings. Some features may be limited.",
           variant: "destructive"
         });
       }
     };
     
     init();
-  }, [user, toast]);
+  }, [user, toast, setCharacterSet]);
 
   // Load journal entries when both user and passphrase are available
   useEffect(() => {
@@ -118,10 +121,14 @@ const UpdatedEmotionChatPersist = () => {
   }, [user, passPhrase]);
 
   const loadJournalEntries = async () => {
-    if (!user || !passPhrase) return;
+    if (!user || !passPhrase) {
+      console.log("Cannot load journal entries - missing user or passphrase");
+      return;
+    }
     
     try {
-      const loaded = await chatService.loadChats('active', passPhrase, user.uid);
+      const loaded = await getJournalEntries("active");
+      console.log(`✅ Loaded ${loaded.length} journal entries`);
       setJournalEntries(loaded);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
@@ -130,32 +137,6 @@ const UpdatedEmotionChatPersist = () => {
         description: "Failed to load your previous conversations.",
         variant: "destructive"
       });
-    }
-  };
-
-  // Function to ensure chat is saved properly
-  const saveChatToJournal = async (userMessage: string, aiResponse: string, usageData: any) => {
-    if (!user || !passPhrase) {
-      console.warn("Cannot save chat: user or passphrase missing");
-      return false;
-    }
-    
-    try {
-      // Save the chat using chatService
-      await chatService.saveChat(userMessage, aiResponse, usageData, passPhrase);
-      console.log("Chat saved successfully");
-      
-      // Reload journal entries to show the new entry
-      await loadJournalEntries();
-      return true;
-    } catch (error) {
-      console.error("Error saving chat to journal:", error);
-      toast({
-        title: "Save Error",
-        description: "Failed to save your conversation. Please try again.",
-        variant: "destructive"
-      });
-      return false;
     }
   };
 
@@ -172,7 +153,7 @@ const UpdatedEmotionChatPersist = () => {
     setIsLoading(true);
     
     // Keep the current response visible until new one arrives
-    const currentResponse = response;
+    // const currentResponse = response; // Removed as it is unused
     
     // Update chat history with user input
     const updatedHistory = [
@@ -189,7 +170,7 @@ const UpdatedEmotionChatPersist = () => {
       setEmotion(detectedEmotion);
 
       // Get response from chat service
-      const { reply, usage } = await firebaseChatService.askQuestion(userInput);
+      const { reply, usage } = await askQuestion(userInput);
       setResponse(reply);
       
       // Update chat history with AI response
@@ -206,26 +187,41 @@ const UpdatedEmotionChatPersist = () => {
           description: "You've reached your usage limit. Please upgrade your plan for more access.",
           variant: "destructive"
         });
-      } else {
-        // Save to journal if we have passphrase and not hitting limits
-        const saveSuccess = await saveChatToJournal(userInput, reply, usage);
-        
-        // Save token usage data in separate collection (independent of journal entries)
-        if (usage) {
+      } else if (user) {
+        // Check if we have a passphrase before trying to save
+        if (!passPhrase) {
+          console.error("Cannot save journal entry: No passphrase available");
+          toast({
+            title: "Encryption Error",
+            description: "Unable to save this conversation due to missing encryption key.",
+            variant: "destructive"
+          });
+        } else {
+          // Save to journal if we have passphrase and not hitting limits
           try {
-            // Get the journal entry ID if saving was successful
-            const journalEntryId = saveSuccess && journalEntries.length > 0 
-              ? journalEntries[0].timestamp 
-              : undefined;
+            console.log("Saving journal entry with character set:", userCharacterSet);
             
-            await saveTokenUsage(
-              usage,
-              'emotion',
-              journalEntryId, // Link to journal entry for reference
-              userInput // Include truncated prompt for reference
+            await saveJournalEntry(
+              userInput,
+              reply,
+              detectedEmotion,
+              { 
+                promptTokens: usage.promptTokens, 
+                completionTokens: usage.completionTokens, 
+                totalTokens: usage.totalTokens 
+              }
             );
-          } catch (tokenErr) {
-            console.error("Error saving token usage:", tokenErr);
+            console.log("✅ Journal entry saved successfully");
+            
+            // Reload journal entries to show the new entry
+            await loadJournalEntries();
+          } catch (saveError) {
+            console.error("Error saving journal entry:", saveError);
+            toast({
+              title: "Save Error",
+              description: "Failed to save this conversation. Please try again.",
+              variant: "destructive"
+            });
           }
         }
       }
@@ -250,10 +246,32 @@ const UpdatedEmotionChatPersist = () => {
     }
   };
 
+  // Check if the user has reached their daily chat limit
+  const isDailyLimitReached = () => {
+    if (subscription.tier === 'free' && journalEntries.length >= 10) {
+      return true;
+    }
+    if (subscription.tier === 'plus' && journalEntries.length >= 30) {
+      return true;
+    }
+    return false;
+  };
+
+  // Get remaining chats for the day
+  const getRemainingChats = () => {
+    if (subscription.tier === 'free') {
+      return Math.max(0, 10 - journalEntries.length % 10);
+    }
+    if (subscription.tier === 'plus') {
+      return Math.max(0, 30 - journalEntries.length % 30);
+    }
+    return "Unlimited"; // Pro tier
+  };
+
   return (
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       <h2 className="flex items-center gap-2">
-        <img src='/assets/images/emotions/Bubba/default.jpg' alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
+        <img src={`/assets/images/emotions/${userCharacterSet}/default.jpg`} alt="Bubba the AI" className="w-16 h-16 object-cover rounded" />
         Bubba the AI Emotional Chat
         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
           {subscription.tier === 'free' ? 'Free' : subscription.tier === 'plus' ? 'Plus' : 'Pro'}
@@ -305,12 +323,12 @@ const UpdatedEmotionChatPersist = () => {
           onChange={(e) => setUserInput(e.target.value)}
           placeholder="How was your day? What's been on your mind?"
           rows={4}
-          disabled={isLoading}
+          disabled={isLoading || !!limitError || isDailyLimitReached()}
         />
         <div className="flex justify-between">
           <button
             type="submit"
-            disabled={isLoading || !!limitError}
+            disabled={isLoading || !!limitError || isDailyLimitReached()}
             className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? "Listening..." : "Send"}
@@ -318,9 +336,9 @@ const UpdatedEmotionChatPersist = () => {
           
           <div className="text-xs text-gray-500 self-end">
             {subscription.tier === 'free' ? (
-              <span>{10 - journalEntries.length % 10}/10 daily chats remaining</span>
+              <span>{getRemainingChats()}/10 daily chats remaining</span>
             ) : subscription.tier === 'plus' ? (
-              <span>{30 - journalEntries.length % 30}/30 daily chats remaining</span>
+              <span>{getRemainingChats()}/30 daily chats remaining</span>
             ) : (
               <span>Unlimited chats (Pro)</span>
             )}
@@ -330,7 +348,7 @@ const UpdatedEmotionChatPersist = () => {
 
       {emotion && (
         <div className="emotion-display mt-4 flex items-center gap-2">
-          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion}/>
+          <strong>Detected Emotion:</strong> <EmotionIcon emotion={emotion} characterSet={userCharacterSet as EmotionCharacterKey} />
         </div>
       )}
 
@@ -377,11 +395,14 @@ const UpdatedEmotionChatPersist = () => {
               Unlock higher usage limits and more features
             </DialogDescription>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+          <SubscriptionSelector 
+            onClose={() => setShowUpgradeDialog(false)} 
+            currentTier={subscription.tier} 
+          />
         </DialogContent>
       </Dialog>
     </div>
   );
 };
 
-export default UpdatedEmotionChatPersist;
+export default UpdatedEmotionChat;

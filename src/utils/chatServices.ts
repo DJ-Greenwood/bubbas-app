@@ -1,27 +1,183 @@
 'use client';
 
+// Import from the source of truth files
 import {
-  collection,
-  doc,
-  setDoc,
-  getDocs,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  where,
-  query,
-  orderBy,
-  getFirestore,
-} from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { encryptData, decryptData } from '@/utils/encryption';
+  getPassPhrase,
+  encryptField,
+  decryptField
+} from '@/utils/encryption';
+
+import {
+  saveJournalEntry,
+  getJournalEntries,
+  editJournalEntry,
+  softDeleteJournalEntry,
+  recoverJournalEntry,
+  hardDeleteJournalEntry,
+  getUserEmotionCharacterSet,
+  saveTokenUsage
+} from '@/utils/firebaseDataService';
+
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';
-import { saveTokenUsage } from '@/utils/tokenPersistenceService';
-import { EmotionCharacterKey } from '@/types/emotionCharacters'; // Import the CharacterSet type
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
+import { getAuth } from 'firebase/auth';
 
-const db = getFirestore();
-const auth = getAuth();
+import { httpsCallable } from "firebase/functions";
+import { functions, db, auth as firebaseAuth } from './firebaseClient'; // Renamed imported auth to firebaseAuth
+import { getDoc, doc } from 'firebase/firestore'; // Import Firestore methods
+import { Emotion } from '@/components/emotion/emotionAssets';
+import { UserProfileData } from '@/types/UserProfileData'; // Import UserProfileData type
+
+const callOpenAI = httpsCallable(functions, "callOpenAI");
+
+// Structure of the expected return from callOpenAI
+interface OpenAIUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface OpenAIResponse {
+  reply: string;
+  usage: OpenAIUsage;
+}
+
+// 🧠 Chat service to manage conversation history and interactions
+let conversationHistory: { role: string; content: string }[] = [];
+
+const openai_model = process.env.NEXT_PUBLIC_OPENAI_MODEL || "gpt-4o"; // Corrected to NEXT_PUBLIC_
+
+// 🔄 Reset the conversation history with a system prompt
+export const resetConversation = (systemPrompt: string) => {
+  console.log("[resetConversation] Resetting conversation with system prompt:", systemPrompt);
+  conversationHistory = [{ role: "system", content: systemPrompt }];
+};
+
+// 💬 Continue conversation with context via Firebase Function
+export const askQuestion = async (question: string): Promise<OpenAIResponse> => {
+  console.log("[askQuestion] Received question:", question);
+  conversationHistory.push({ role: "user", content: question });
+
+  try {
+    console.log("[askQuestion] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
+    const response = await callOpenAI({
+      messages: conversationHistory,
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "No response generated";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[askQuestion] Received response:", assistantReply, "Tokens:", usage);
+
+    conversationHistory.push({ role: "assistant", content: assistantReply });
+
+    return { reply: assistantReply, usage };
+  } catch (error) {
+    console.error("[askQuestion] Error while calling Firebase Callable Function:", error);
+    throw error;
+  }
+};
+
+// ✨ One-off message via Firebase Function
+export const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
+  console.log("[generateResponse] Received prompt:", prompt);
+
+  try {
+    console.log("[generateResponse] Sending request to Firebase Callable Function with prompt:", prompt);
+    const response = await callOpenAI({
+      messages: [{ role: "user", content: prompt }],
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "No response generated";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[generateResponse] Received response:", assistantReply, "Tokens:", usage);
+
+    return { reply: assistantReply, usage };
+  } catch (error) {
+    console.error("[generateResponse] Error while calling Firebase Callable Function:", error);
+    throw error;
+  }
+};
+
+// 🧸 Start emotional support session with a custom system prompt and return Bubba's first message
+export const startEmotionalSupportSession = async (): Promise<{ reply: string; usage: OpenAIUsage; emotion: Emotion }> => {
+  const emotionalPrompt = `
+You are Bubbas, a compassionate AI companion. Your goal is to help the user reflect on their day, process emotions, and feel supported.
+Ask thoughtful, open-ended questions like:
+
+- "How did your day go?"
+- "What’s been on your mind lately?"
+- "Any plans for the weekend or time off?"
+- "What’s something you’re looking forward to?"
+- "Do you want to talk about anything that’s bothering you?"
+
+Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
+  `.trim();
+
+  console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
+
+  try {
+    // 💬 Start the session with system prompt
+    conversationHistory.length = 0; // Reset history
+    conversationHistory.push({ role: "system", content: emotionalPrompt });
+
+    const response = await callOpenAI({
+      messages: conversationHistory,
+      model: openai_model,
+      maxTokens: 1000,
+    });
+
+    const data = response.data as OpenAIResponse;
+    const assistantReply = data.reply || "Hi! I'm here whenever you're ready to talk.";
+    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    console.log("[startEmotionalSupportSession] Bubba's first reply:", assistantReply);
+
+    conversationHistory.push({ role: "assistant", content: assistantReply });
+
+    // 🧠 Detect Bubba's emotion based on his reply
+    const emotion = await detectEmotion(assistantReply);
+
+    return { reply: assistantReply, usage, emotion };
+  } catch (error) {
+    console.error("[startEmotionalSupportSession] Error starting session:", error);
+    throw error;
+  }
+};
+
+// 🧑‍💻 Get user profile to check TTS settings and other features
+export const getUserProfile = async (): Promise<UserProfileData | null> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User is not authenticated');
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      return userSnap.data() as UserProfileData;
+    } else {
+      console.error('No user profile found');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+};
+
+// Existing functions
+const auth = firebaseAuth; // Use the renamed firebaseAuth
 
 // Helper function to get user UID
 const getUserUID = (): string | null => {
@@ -29,31 +185,45 @@ const getUserUID = (): string | null => {
   return user ? user.uid : null;
 };
 
-// Renamed from fetchPassPhrase to getPassPhrase
-export const getPassPhrase = async (): Promise<string | null> => {
-  const uid = getUserUID();
-  if (!uid) return null;
+// ✅ Save new chat/journal entry - now with character set
+export async function saveChat(
+  userText: string,
+  bubbaReply: string,
+  detectedEmotionText: string,
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number },
+) {
+  // Call the centralized function with all parameters
+  return saveJournalEntry(
+    userText,
+    bubbaReply,
+    detectedEmotionText,
+    usage
+  );
+}
 
-  try {
-    const userDocRef = doc(db, "users", uid);
-    const userDocSnap = await getDoc(userDocRef);
+// ✅ For backward compatibility
+export const saveConversation = saveChat;
 
-    if (userDocSnap.exists()) {
-      const userData = userDocSnap.data();
-      if (userData?.preferences?.security?.passPhrase) {
-        return userData.preferences.security.passPhrase;
-      }
-    }
-    
-    console.warn("User passphrase not found");
-    return null;
-  } catch (error) {
-    console.error("Failed to fetch passPhrase:", error);
-    return null;
-  }
-};
+// ✅ Load journal entries by status
+export async function loadChats(
+  status: 'active' | 'trash' = 'active',
+  uid?: string
+): Promise<JournalEntry[]> {
+  return getJournalEntries(status, uid);
+}
 
+// ✅ For backward compatibility
+export const loadConversation = loadChats;
 
+// ✅ Edit a chat entry
+export async function editChat(
+  timestamp: string,
+  newUserInput: string,
+  passPhrase: string,
+  uid?: string
+) {
+  return editJournalEntry(timestamp, newUserInput, uid);
+}
 
 // ✅ For backward compatibility
 export const editConversation = async (
@@ -71,31 +241,7 @@ export async function softDeleteChat(
   passPhrase: string,
   uid?: string
 ) {
-  const userUID = uid || getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  try {
-    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
-    const docSnap = await getDoc(ref);
-    
-    if (!docSnap.exists()) {
-      throw new Error('Journal entry not found');
-    }
-    
-    await updateDoc(ref, { 
-      status: 'trash',
-      deleted: true,
-      deletedAt: new Date().toISOString()
-    });
-    
-    console.log('✅ Journal entry moved to trash');
-    return true;
-  } catch (error) {
-    console.error('Failed to soft delete journal entry:', error);
-    throw error;
-  }
+  return softDeleteJournalEntry(timestamp, uid);
 }
 
 // ✅ For backward compatibility
@@ -103,9 +249,7 @@ export const softDeleteConversation = async (
   timestamp: string,
   uid: string
 ) => {
-  const passPhrase = await getPassPhrase();
-  if (!passPhrase) throw new Error('No passphrase available');
-  return softDeleteChat(timestamp, passPhrase, uid);
+  return softDeleteChat(timestamp, "", uid);
 };
 
 // ✅ Recover from trash
@@ -113,25 +257,7 @@ export async function recoverChat(
   timestamp: string,
   uid?: string
 ) {
-  const userUID = uid || getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  try {
-    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
-    await updateDoc(ref, { 
-      status: 'active',
-      deleted: false,
-      recoveredAt: new Date().toISOString()
-    });
-    
-    console.log('✅ Journal entry recovered');
-    return true;
-  } catch (error) {
-    console.error('Failed to recover journal entry:', error);
-    throw error;
-  }
+  return recoverJournalEntry(timestamp, uid);
 }
 
 // ✅ For backward compatibility
@@ -147,31 +273,7 @@ export async function hardDeleteChat(
   timestamp: string,
   uid?: string
 ) {
-  const userUID = uid || getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  try {
-    // First retrieve the journal entry to check if it exists
-    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
-    const entryDoc = await getDoc(ref);
-    
-    if (!entryDoc.exists()) {
-      throw new Error('Journal entry not found');
-    }
-    
-    // Then delete the journal entry
-    await deleteDoc(ref);
-    
-    // Note: We do NOT delete the token usage record - it stays for billing/analytics
-    
-    console.log('✅ Journal entry permanently deleted (token usage records preserved)');
-    return true;
-  } catch (error) {
-    console.error('Failed to permanently delete journal entry:', error);
-    throw error;
-  }
+  return hardDeleteJournalEntry(timestamp, uid);
 }
 
 // ✅ For backward compatibility
@@ -182,186 +284,8 @@ export const hardDeleteConversation = async (
   return hardDeleteChat(timestamp, uid);
 };
 
+// Export the getPassPhrase function from encryption.ts
+export { getPassPhrase };
 
-// Get the current user's emotion character set preference
-export const getUserEmotionCharacterSet = async (): Promise<EmotionCharacterKey | null> => {
-  const uid = getUserUID();
-  if (!uid) return null;
-
-  try {
-    const userDocRef = doc(db, "users", uid);
-    const userDocSnap = await getDoc(userDocRef);
-
-    if (userDocSnap.exists()) {
-      const userData = userDocSnap.data();
-      return userData?.preferences?.emotionCharacterSet || 'Bubba'; // Default to 'Bubba' if not set
-    }
-    
-    return 'Bubba'; // Default character set
-  } catch (error) {
-    console.error("Failed to fetch emotion character set:", error);
-    return 'Bubba'; // Default on error
-  }
-};
-
-// ✅ Save new chat/journal entry - now with character set
-export async function saveChat(
-  userInput: string,
-  bubbaReply: string,
-  usage: { promptTokens: number; completionTokens: number; totalTokens: number },
-  passPhrase: string,
-) {
-  const userUID = getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  const now = new Date();
-  const timestamp = now.toISOString();
-
-  const encryptedUserText = encryptData({ userText: userInput }, passPhrase);
-  const encryptedBubbaReply = encryptData({ bubbaReply }, passPhrase);
-  const emotion = await detectEmotion(userInput);
-  
-  // Get the current character set from user preferences
-  const characterSet = await getUserEmotionCharacterSet();
-
-  const newEntry: JournalEntry = {
-    version: 1,
-    createdAt: timestamp,
-    timestamp,
-    emotion,
-    encryptedUserText,
-    encryptedBubbaReply,
-    deleted: false,
-    usage: {
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-    },
-    status: 'active',
-    lastEdited: '',
-    lastEditedBy: '',
-    // Add the character set to the journal entry
-    emotionCharacterSet: characterSet || 'Bubba'
-  };
-
-  const ref = collection(db, 'journals', userUID, 'entries');
-  await setDoc(doc(ref, timestamp), newEntry);
-  
-  // Make sure token usage is saved separately as well for billing persistence
-  await saveTokenUsage(
-    usage,
-    'journal',
-    timestamp, // Use timestamp as journal entry ID
-    userInput.substring(0, 50) + (userInput.length > 50 ? '...' : '') // Include truncated prompt
-  );
-  
-  console.log('✅ Saved chat and journal entry!');
-}
-
-// ✅ For backward compatibility
-export const saveConversation = saveChat;
-
-// ✅ Load journal entries by status
-export async function loadChats(
-  status: 'active' | 'trash' = 'active',
-  passPhrase: string,
-  uid?: string
-): Promise<JournalEntry[]> {
-  const userUID = uid || getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  if (!passPhrase) {
-    console.warn('❌ Passphrase not available. Skipping journal load.');
-    return [];
-  }
-
-  try {
-    const entriesRef = collection(db, 'journals', userUID, 'entries');
-    const q = query(
-      entriesRef,
-      where('status', '==', status),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-      console.log(`No ${status} entries found`);
-      return [];
-    }
-
-    const entries: JournalEntry[] = [];
-    
-    for (const doc of snapshot.docs) {
-      try {
-        const data = doc.data() as JournalEntry;
-        
-        // Only process entries with the correct status
-        if (data.status !== status) continue;
-        
-        // For backward compatibility - if emotionCharacterSet is missing, use 'Bubba'
-        if (!data.emotionCharacterSet) {
-          data.emotionCharacterSet = 'Bubba';
-        }
-        
-        entries.push({
-          ...data,
-          timestamp: doc.id // Use doc ID as timestamp
-        });
-      } catch (error) {
-        console.error(`Error processing document ${doc.id}:`, error);
-      }
-    }
-
-    return entries;
-  } catch (error) {
-    console.error('Failed to load journal entries:', error);
-    return [];
-  }
-}
-
-// ✅ For backward compatibility
-export const loadConversation = loadChats;
-
-async function editChat(
-  timestamp: string,
-  newUserInput: string,
-  passPhrase: string,
-  uid: string
-): Promise<boolean> {
-  const userUID = uid || getUserUID();
-  if (!userUID) {
-    throw new Error('User not authenticated');
-  }
-
-  try {
-    const ref = doc(db, 'journals', userUID, 'entries', timestamp);
-    const docSnap = await getDoc(ref);
-
-    if (!docSnap.exists()) {
-      throw new Error('Journal entry not found');
-    }
-
-    const existingData = docSnap.data() as JournalEntry;
-
-    const encryptedUserText = encryptData({ userText: newUserInput }, passPhrase);
-    const emotion = await detectEmotion(newUserInput);
-
-    await updateDoc(ref, {
-      encryptedUserText,
-      emotion,
-      lastEdited: new Date().toISOString(),
-      lastEditedBy: userUID,
-    });
-
-    console.log('✅ Journal entry updated successfully');
-    return true;
-  } catch (error) {
-    console.error('Failed to edit journal entry:', error);
-    throw error;
-  }
-}
+// Export the function to get the user's emotion character set
+export { getUserEmotionCharacterSet };

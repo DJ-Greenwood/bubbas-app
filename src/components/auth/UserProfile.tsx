@@ -59,7 +59,7 @@ const UpdatedUserProfile = () => {
         
         // Set icon size from profile
         if (profile.preferences.emotionIconSize) {
-          const size = parseInt(profile.preferences.emotionIconSize, 10);
+          const size = profile.preferences.emotionIconSize;
           if (!isNaN(size)) {
             setEmotionIconSize(size);
             setPreviewSize(size);
@@ -94,7 +94,7 @@ const UpdatedUserProfile = () => {
         }
         
         if (updates.preferences.emotionIconSize) {
-          const size = parseInt(updates.preferences.emotionIconSize, 10);
+          const size = updates.preferences.emotionIconSize;
           if (!isNaN(size)) {
             setEmotionIconSize(size);
           }
@@ -118,7 +118,7 @@ const UpdatedUserProfile = () => {
     handleProfileUpdate({
       preferences: {
         ...userProfile!.preferences,
-        emotionCharacterSet: EmotionCharacters[charSet].fileName
+        emotionCharacterSet: EmotionCharacters[charSet].fileName as EmotionCharacterKey
       }
     });
   };
@@ -132,7 +132,7 @@ const UpdatedUserProfile = () => {
     handleProfileUpdate({
       preferences: {
         ...userProfile!.preferences,
-        emotionIconSize: size.toString()
+        emotionIconSize: size
       }
     });
   };
@@ -191,7 +191,7 @@ const UpdatedUserProfile = () => {
                     {userProfile.subscription.tier.charAt(0).toUpperCase() + userProfile.subscription.tier.slice(1)} Plan
                   </span>
                   <span className="bg-white/20 text-white text-xs font-medium px-2.5 py-0.5 rounded">
-                    Member since {new Date(userProfile.createdAt).toLocaleDateString()}
+                    Member since {new Date((userProfile.createdAt as any)?.toDate?.() || userProfile.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               </div>
@@ -385,9 +385,11 @@ const UpdatedUserProfile = () => {
                           : 'Full access to all premium features'}
                       </p>
                       <div className="flex items-center justify-between text-sm">
-                        <span>Active since: {new Date(userProfile.subscription.activationDate).toLocaleDateString()}</span>
+                        <span>Active since: {new Date((userProfile.subscription.activationDate as any)?.toDate?.() || userProfile.subscription.activationDate).toLocaleDateString()}</span>
                         {userProfile.subscription.tier !== 'free' && (
-                          <span>Renews: {new Date(userProfile.subscription.expirationDate).toLocaleDateString()}</span>
+                          <span>
+                            Renews: {userProfile.subscription.expirationDate ? new Date((userProfile.subscription.expirationDate as any)?.toDate?.() || userProfile.subscription.expirationDate).toLocaleDateString() : 'N/A'}
+                          </span>
                         )}
                       </div>
                     </div>

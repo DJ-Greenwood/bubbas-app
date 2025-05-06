@@ -2,78 +2,76 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Auth Helper ───────────────────────────────
+    // ─── Helpers ─────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // ─── User Ownership Check ──────────────────────
     function isUserOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ─── TTS Preferences Validator ─────────────────
     function isValidTTSPreferences() {
-      let prefs = request.resource.data.preferences;
-      
-      let ttsRateValid = !('preferences' in request.resource.data) || 
-                         !('ttsRate' in prefs) || 
-                         (prefs.ttsRate is number && prefs.ttsRate >= 0.5 && prefs.ttsRate <= 2.0);
-
-      let ttsPitchValid = !('preferences' in request.resource.data) || 
-                          !('ttsPitch' in prefs) || 
-                          (prefs.ttsPitch is number && prefs.ttsPitch >= 0.5 && prefs.ttsPitch <= 1.5);
-
-      let ttsAutoplayValid = !('preferences' in request.resource.data) || 
-                             !('ttsAutoplay' in prefs) || 
-                             (prefs.ttsAutoplay is bool);
-
-      return ttsRateValid && ttsPitchValid && ttsAutoplayValid;
+      return !('preferences' in request.resource.data) || (
+        (!('ttsRate' in request.resource.data.preferences) ||
+          (request.resource.data.preferences.ttsRate is number &&
+           request.resource.data.preferences.ttsRate >= 0.5 &&
+           request.resource.data.preferences.ttsRate <= 2.0)) &&
+        (!('ttsPitch' in request.resource.data.preferences) ||
+          (request.resource.data.preferences.ttsPitch is number &&
+           request.resource.data.preferences.ttsPitch >= 0.5 &&
+           request.resource.data.preferences.ttsPitch <= 1.5)) &&
+        (!('ttsAutoplay' in request.resource.data.preferences) ||
+          (request.resource.data.preferences.ttsAutoplay is bool))
+      );
     }
 
-    // ─── TTS Feature Toggle Validator ──────────────
     function isValidTTSFeatureToggle() {
       return !('features' in request.resource.data) || 
              !('tts' in request.resource.data.features) || 
              (request.resource.data.features.tts is bool);
     }
 
-    // ─── Users Collection ──────────────────────────
+    // ─── USERS ───────────────────────────────────────
     match /users/{userId} {
-      allow read: if isUserOwner(userId);
-      allow create: if isUserOwner(userId);
+      allow read, create, delete: if isUserOwner(userId);
       allow update: if isUserOwner(userId) &&
-                      isValidTTSPreferences() &&
-                      isValidTTSFeatureToggle();
-      allow delete: if isUserOwner(userId);
+                    isValidTTSPreferences() &&
+                    isValidTTSFeatureToggle();
 
-      // Nested collection: /users/{userId}/chats/{chatId}
       match /chats/{chatId} {
         allow read, write: if isUserOwner(userId);
       }
 
-      // Nested collection: /users/{userId}/tokenUsage/{usageId}
-      match /tokenUsage/{usageId} {
+      match /token_usage/{docId} {
         allow read, create: if isUserOwner(userId);
-        allow update, delete: if false; // Immutable
+        allow update, delete: if false;
+      }
+
+      match /stats/{statsId} {
+        allow read, write: if isUserOwner(userId);
       }
     }
 
-    // ─── Admin Collection ──────────────────────────
+    // ─── JOURNALS ────────────────────────────────────
+    match /users/{userId}/journal/{entryId}/entries {
+      allow read, write, update, delete: if isUserOwner(userId);
+    }
+
+    // ─── CHAT MESSAGES (GLOBAL/SHARED) ──────────────
+    match /chats/{chatId}/messages/{messageId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if request.auth.uid == resource.data.sender;
+    }
+
+    // ─── USER ENCRYPTION KEYS ───────────────────────
+    match /userKeys/{userId} {
+      allow read, write: if isUserOwner(userId);
+    }
+
+    // ─── ADMIN DOCS ─────────────────────────────────
     match /admin/{docId} {
-      allow read, write: if false; // Only server SDK
-    }
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId 
-                  && (resource == null || 
-                      !request.resource.data.keys().hasAny(['preferences.theme']) || 
-                      request.resource.data.preferences.theme in ['light', 'dark', 'system']);
-    }
-    
-    match /users/{userId} {
-      allow read, write: if request.auth != null && 
-                          (request.auth.uid == userId || request.auth.token.admin == true);
+      allow read, write: if false;
     }
   }
 }

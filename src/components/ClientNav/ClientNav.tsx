@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
-import { auth } from '../../../firebase';
+import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
 
 export default function ClientNav() {

@@ -4,41 +4,28 @@ import { useRouter } from 'next/navigation';
 import { JournalEntry } from '@/types/JournalEntry';
 import JournalCard from './Journal/JournalCard';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/utils/firebaseClient'; // Adjust the import based on your project structure 
-import { setUserUID } from '@/utils/encryption';
+import { auth } from '@/utils/firebaseClient';
+import { setUserUID, decryptData, getPassPhrase } from '@/utils/encryption'; // Import directly from encryption.ts
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
-import { loadChats, softDeleteConversation, editConversation, getPassPhrase } from '@/utils/chatServices';
-import { stopSpeaking } from '@/utils/tts'; // Assuming this is defined elsewhere
+import { stopSpeaking } from '@/utils/tts';
+import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService'; // Import database functions from firebaseDataService.ts
+import { useToast } from '@/hooks/use-toast';
 
-const JournalPage = () => {
+const UpdatedJournalPage = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [passPhrase, setPassPhrase] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null); // State to store the authenticated user
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   const initializeUserData = useCallback(async (uid: string) => {
     setLoading(true);
     setError(null);
-
     try {
-      // Set user UID for encryption utilities
       setUserUID(uid);
-
-      // Get passphrase once and store it
-      const phrase = await getPassPhrase();
-      if (!phrase) {
-        console.debug('Retrieved passphrase:', phrase);
-        setError('Could not retrieve encryption key. Please check your user profile or contact support.');
-        setLoading(false);
-        setEntries([]);
-        return false;
-      }
-
-      // Store the passphrase for future use
-      setPassPhrase(phrase);
+      // No need to fetch and store passphrase separately as encryption.ts will handle it
       return true;
     } catch (err) {
       console.error('Failed to initialize user data:', err);
@@ -50,89 +37,108 @@ const JournalPage = () => {
   }, []);
 
   const loadJournalEntries = useCallback(async () => {
-    if (!passPhrase || !user) return;
+    if (!user) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      // Load active chat entries with the stored passphrase
-      const journalEntries = await loadChats('active', passPhrase, user.uid);
+      const encryptedEntries = await getJournalEntries('active');
 
-      // Handle the case where journalEntries is null or undefined
-      if (!journalEntries) {
-        console.log('No journal entries returned, setting empty array');
-        setEntries([]);
-      } else {
-        // Set the entries
-        setEntries(journalEntries);
-      }
+      // Decrypt each entry's user text and Bubba reply
+      const decrypted = await Promise.all(
+        encryptedEntries.map(async (entry) => {
+          try {
+            // Use the updated decryption functions
+            const userText = await decryptData(entry.encryptedUserText ?? '');
+            const bubbaReply = await decryptData(entry.encryptedBubbaReply ?? '');
+
+            return {
+              ...entry,
+              userText,
+              bubbaReply
+            };
+          } catch (decryptionError) {
+            console.error(`Failed to decrypt journal entry ${entry.timestamp}:`, decryptionError);
+            return {
+              ...entry,
+              userText: '[Failed to decrypt]',
+              bubbaReply: '[Failed to decrypt]'
+            };
+          }
+        })
+      );
+
+      setEntries(decrypted);
     } catch (err) {
       console.error('Failed to load journal entries:', err);
       setError('Failed to load journal entries: ' + (err instanceof Error ? err.message : String(err)));
       setEntries([]);
+      toast({
+        title: "Error Loading Journal",
+        description: "There was a problem loading your entries. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
-  }, [passPhrase, user]);
+  }, [user, toast]);
 
-  // Initialize authentication and user data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        setUserUID(firebaseUser.uid); // Set user UID for encryption
-
-        // Initialize app data
+        setUserUID(firebaseUser.uid);
         initializeUserData(firebaseUser.uid);
       }
     });
 
     return () => {
       unsubscribe();
-      stopSpeaking(); // Stop any speech when component unmounts
+      stopSpeaking();
     };
   }, [initializeUserData]);
 
   useEffect(() => {
-    loadJournalEntries();
-  }, [loadJournalEntries]);
+    if (user) {
+      loadJournalEntries();
+    }
+  }, [user, loadJournalEntries]);
 
   const handleSoftDelete = async (timestamp: string) => {
     try {
-      setEntries((prev) => prev.filter((entry) => entry.timestamp !== timestamp));
-
       if (!user) {
-        setError('User not authenticated. Please log in.');
+        setError('User not authenticated.');
         return;
       }
-
-      await softDeleteConversation(timestamp, user.uid);
+      setEntries((prev) => prev.filter((entry) => entry.timestamp !== timestamp));
+      await softDeleteJournalEntry(timestamp, user.uid);
+      toast({ title: "Entry Moved to Trash", description: "Journal entry has been moved to the trash." });
     } catch (error) {
       console.error('Failed to delete entry:', error);
       setError('Failed to delete entry: ' + (error instanceof Error ? error.message : String(error)));
       loadJournalEntries();
+      toast({ title: "Error", description: "Failed to move entry to trash.", variant: "destructive" });
     }
   };
 
   const handleEdit = async (timestamp: string, newText: string) => {
     try {
-      if (!user || !passPhrase) {
+      if (!user) {
         setError('User not authenticated or encryption key not available.');
         return;
       }
-
-      await editConversation(timestamp, newText, user.uid, passPhrase);
+      await editJournalEntry(timestamp, newText, user.uid);
       await loadJournalEntries();
+      toast({ title: "Entry Updated", description: "Your journal entry has been updated successfully." });
     } catch (error) {
       console.error('Failed to edit entry:', error);
       setError('Failed to edit entry: ' + (error instanceof Error ? error.message : String(error)));
+      toast({ title: "Error", description: "Failed to update your journal entry.", variant: "destructive" });
     }
   };
 
-  const goToTrash = () => {
-    router.push('/Journal/trash');
-  };
+  const goToTrash = () => router.push('/Journal/trash');
 
   if (loading && entries.length === 0) {
     return <div className="text-center py-8">Loading your journal entries...</div>;
@@ -158,17 +164,7 @@ const JournalPage = () => {
           className="flex items-center gap-2 text-gray-500 hover:text-red-500 transition-colors"
           title="View Trash"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 6h18"></path>
             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
             <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
@@ -188,7 +184,7 @@ const JournalPage = () => {
             You don't have any journal entries yet. Start chatting with Bubba to create some!
           </p>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/EmotionChat')}
             className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
           >
             Start New Chat
@@ -229,4 +225,4 @@ const JournalPage = () => {
   );
 };
 
-export default JournalPage;
+export default UpdatedJournalPage;
