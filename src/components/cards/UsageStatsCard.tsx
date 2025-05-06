@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { getTokenUsageSummary } from '@/utils/tokenTrackingService';
+import { getTokenUsageSummary } from '@/utils/firebaseDataService';
 import { getUserTier } from '@/utils/subscriptionService';
 
 const UsageStatsCard = () => {
@@ -19,7 +19,19 @@ const UsageStatsCard = () => {
     const loadStats = async () => {
       try {
         const stats = await getTokenUsageSummary();
-        setUsageStats(stats);
+        setUsageStats({
+          daily: {
+            used: stats.daily.used || 0,
+            limit: stats.daily.limit || 10,
+            percent: stats.daily.percent || 0,
+          },
+          monthly: {
+            used: stats.monthly.used || 0,
+            limit: stats.monthly.limit || 10000,
+            percent: stats.monthly.percent || 0,
+          },
+          lifetime: stats.lifetime.totalTokens || 0,
+        });
         
         const tier = await getUserTier();
         setTierName(tier.name);

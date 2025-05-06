@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import { auth } from '@/utils/firebaseClient';
-import { onAuthStateChanged } from "firebase/auth";
+import { User, onAuthStateChanged } from "firebase/auth";
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { Emotion } from '@/components/emotion/emotionAssets';
-import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/chatServices';
+import { setUserUID, getPassPhrase } from '@/utils/encryption';
+
 import { useSubscription } from '@/utils/subscriptionService';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, Send, RefreshCw } from 'lucide-react';
@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
-import { saveJournalEntry, getUserDoc } from '@/utils/firebaseDataService';
-import { resetConversation, askQuestion } from '@/utils/chatServices';
+import { saveJournalEntry, getUserDoc, getCurrentUserUid } from '@/utils/firebaseDataService';
+import { resetConversation, askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
 import ResponseCard from '../Journal/JournalResponses/ResponseCard';
+import { get } from "http";
 
 interface OpenAIUsage {
   promptTokens: number;
@@ -44,10 +45,11 @@ const UpdatedChatBasicService = () => {
     resetConversation("You are Bubba, a helpful AI assistant.");
     
     // Listen for auth state and set user
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUserUID(firebaseUser.uid);
-        
+    const unsubscribe = onAuthStateChanged(auth, async (User) => {
+      if (User) {
+        const UserUid = getCurrentUserUid();
+        setUserUID(UserUid);
+        startEmotionalSupportSession();
         try {
           // Get passphrase
           const phrase = await getPassPhrase();
@@ -56,7 +58,7 @@ const UpdatedChatBasicService = () => {
           }
           
           // Get user stats to determine daily usage
-          const userDoc = await getUserDoc(firebaseUser.uid);
+          const userDoc = await getUserDoc(UserUid);
           const chatsToday = userDoc?.usage?.chatsToday || 0;
           setDailyChatsUsed(chatsToday);
         } catch (error) {
@@ -110,8 +112,9 @@ const UpdatedChatBasicService = () => {
       setDailyChatsUsed(prev => prev + 1);
 
       // Save the conversation if user is authenticated
-      const user = auth.currentUser;
-      if (user) {
+      const user = getCurrentUserUid();
+      const passphrase =await getPassPhrase();
+      if (user && passphrase) {
         try {
           await saveJournalEntry(
             userInput,
@@ -220,7 +223,7 @@ const UpdatedChatBasicService = () => {
             )}
             <ResponseCard 
               response={response}
-              className="flex-grow" input={userInput}            />
+              className="flex-grow"/>
           </div>
         ) : (
           <div className="text-gray-400 italic text-center py-8">

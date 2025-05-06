@@ -6,8 +6,8 @@ import { auth } from '@/utils/firebaseClient';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
-import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/chatServices';
+import { setUserUID, getPassPhrase } from '@/utils/encryption';
+
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

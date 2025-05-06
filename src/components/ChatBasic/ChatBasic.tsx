@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import chatService from '../../utils/firebaseChatService';
+import { startEmotionalSupportSession, askQuestion } from '../../utils/chatServices';
 import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import detectEmotion
 import EmotionIcon from '@/components/emotion/EmotionIcon'; // Import EmotionIcon component
 import { Emotion } from '@/components/emotion/emotionAssets'; // Import Emotion type
@@ -20,7 +20,7 @@ const EmotionChat = () => {
 
   // 🧠 Initialize Bubbas in emotional support mode
   useEffect(() => {
-    chatService.startEmotionalSupportSession();
+    startEmotionalSupportSession();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -36,7 +36,7 @@ const EmotionChat = () => {
       const detectedEmotion = await detectEmotion(userInput);
       setEmotion(detectedEmotion);
 
-      const result = await chatService.askQuestion(userInput);
+      const result = await askQuestion(userInput);
       setResponse(result.reply || "");
       setUsage(result.usage || null);
       setUserInput(""); // Clear input after sending

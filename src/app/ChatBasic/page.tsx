@@ -1,7 +1,6 @@
 // src/app/ChatBasic/page.tsx
 // This is a Next.js page component for the Emotion Chat feature.
 "use client";
-import ChatBasic from '../../components/ChatBasic/ChatBasic';
 import UpdatedChatBasic from '@/components/ChatBasic/UpdatedChatBasic';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
 

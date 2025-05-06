@@ -1,12 +1,5 @@
 'use client';
 
-// Import from the source of truth files
-import {
-  getPassPhrase,
-  encryptField,
-  decryptField
-} from '@/utils/encryption';
-
 import {
   saveJournalEntry,
   getJournalEntries,
@@ -20,8 +13,7 @@ import {
 
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';
-import { EmotionCharacterKey } from '@/types/emotionCharacters';
-import { getAuth } from 'firebase/auth';
+
 
 import { httpsCallable } from "firebase/functions";
 import { functions, db, auth as firebaseAuth } from './firebaseClient'; // Renamed imported auth to firebaseAuth
@@ -284,8 +276,3 @@ export const hardDeleteConversation = async (
   return hardDeleteChat(timestamp, uid);
 };
 
-// Export the getPassPhrase function from encryption.ts
-export { getPassPhrase };
-
-// Export the function to get the user's emotion character set
-export { getUserEmotionCharacterSet };

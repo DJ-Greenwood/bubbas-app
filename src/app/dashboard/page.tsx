@@ -255,7 +255,10 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Upgrade Your Plan</DialogTitle>
           </DialogHeader>
-          <SubscriptionSelector onClose={() => setShowUpgradeDialog(false)} />
+          <SubscriptionSelector 
+            onClose={() => setShowUpgradeDialog(false)} 
+            currentTier={subscription.tier} 
+          />
         </DialogContent>
       </Dialog>
     </RequireAuth>

@@ -146,24 +146,29 @@ const getKeyFromUserCloud = async (): Promise<string | null> => {
 // Get the user's passphrase from the database
 export const getPassPhrase = async (): Promise<string | null> => {
   const user = auth.currentUser;
-  if (!user) return null;
+  if (!user) {
+    console.warn("No authenticated user found");
+    return null;
+  }
 
   try {
     const userDocRef = doc(db, "users", user.uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      const userData = userDocSnap.data();
-      if (userData?.preferences?.security?.passPhrase) {
-        return userData.preferences.security.passPhrase;
+      const userData = userDocSnap.data() as { preferences?: { security?: { passPhrase?: string } } };
+      const passPhrase = userData?.preferences?.security?.passPhrase;
+
+      if (passPhrase) {
+        return passPhrase;
       }
     }
-    
-    console.warn("User passphrase not found");
+
+    console.warn("User passphrase not found in Firestore");
     return null;
   } catch (error) {
-    console.error("Failed to fetch passPhrase:", error);
-    return null;
+    console.error("Failed to fetch passPhrase from Firestore:", error);
+    throw new Error("Failed to fetch passPhrase");
   }
 };
 

@@ -9,7 +9,6 @@ import { encryptField, decryptField, getPassPhrase } from './encryption';
 import { JournalEntry } from '@/types/JournalEntry';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';
-import { time } from 'console';
 
 // Helper function to get current user UID
 export const getCurrentUserUid = (): string => {
@@ -18,11 +17,6 @@ export const getCurrentUserUid = (): string => {
     throw new Error('User not authenticated');
   }
   return user.uid;
-};
-
-// Helper Function to create a unique ID for journal entries
-export const createUniqueId = (): string => {
-  return new Date().toISOString(); // Use ISO string as unique ID
 };
 
 // Helper function to remove undefined values from an object before saving to Firestore
@@ -120,13 +114,7 @@ export const saveJournalEntry = async (
     emotionCharacterSet: characterSet || 'Bubba'
   };
 
-  const entryId = createUniqueId(); // Create a unique ID for the entry
-  
-  if (!uid) {
-      throw new Error('User UID is undefined');
-  }
-  const ref = doc(db, 'users', uid, 'journal', entryId, 'entries');
-  
+  const ref = collection(db, 'journals', uid, 'entries');
   await setDoc(doc(ref, timestamp), newEntry);
   
   // Make sure token usage is saved separately as well for billing persistence
@@ -149,10 +137,7 @@ export const editJournalEntry = async (
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
-    if (!uid) {
-        throw new Error('User UID is undefined');
-    }
-    const ref = doc(db, 'users', uid, 'journal', entryId, 'entries');
+    const ref = doc(db, 'journals', userUID, 'entries', entryId);
     const docSnap = await getDoc(ref);
     
     if (!docSnap.exists()) {
@@ -179,11 +164,11 @@ export const editJournalEntry = async (
 // Load journal entries by status (active or trash)
 export const getJournalEntries = async (
   status: 'active' | 'trash' = 'active',
-  
+  uid?: string
 ) => {
   try {
-    const entryId = createUniqueId(); // Create a unique ID for the entry
-    const entriesRef = collection(db, 'journals', entryId, 'entries');
+    const userUID = uid || getCurrentUserUid();
+    const entriesRef = collection(db, 'journals', userUID, 'entries');
     const q = query(
       entriesRef,
       where('status', '==', status),
@@ -622,190 +607,36 @@ export const getTokenUsageStats = async (): Promise<{
   };
 };
 
-//-------------------------------------------------------------------------------
-// Token Usage Operations (continued)
-//-------------------------------------------------------------------------------
-export const getTokenUsageHistory = async (
-  period: 'day' | 'week' | 'month' | 'all' = 'all'
-): Promise<TokenRecord[]> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.error('User not authenticated');
-      return [];
-    }
-
-    const tokenRef = collection(db, 'users', user.uid, 'token_usage');
-    let tokenQuery: any;
-
-    if (period === 'day') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      tokenQuery = query(
-        tokenRef,
-        where('created', '>=', today),
-        orderBy('created', 'desc')
-      );
-    } else if (period === 'week') {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      tokenQuery = query(
-        tokenRef,
-        where('created', '>=', weekAgo),
-        orderBy('created', 'desc')
-      );
-    } else if (period === 'month') {
-      const monthAgo = new Date();
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      tokenQuery = query(
-        tokenRef,
-        where('created', '>=', monthAgo),
-        orderBy('created', 'desc')
-      );
-    } else {
-      // All time, but still sorted by most recent first
-      tokenQuery = query(tokenRef, orderBy('created', 'desc'));
-    }
-
-    const querySnapshot = await getDocs(tokenQuery);
-    
-    const tokenRecords: TokenRecord[] = [];
-    querySnapshot.forEach((docSnapshot) => {
-      const data = docSnapshot.data() as TokenRecord;
-      
-      // Convert Firestore Timestamp to string
-      let timestamp = data.timestamp || '';
-      if (data.created instanceof Timestamp) {
-        timestamp = data.created.toDate().toISOString();
-      }
-      
-      tokenRecords.push({
-        promptTokens: data.promptTokens || 0,
-        completionTokens: data.completionTokens || 0,
-        totalTokens: data.totalTokens || 0,
-        timestamp,
-        journalEntryId: data.journalEntryId,
-        chatType: data.chatType || 'other',
-        userPrompt: data.userPrompt,
-        model: data.model
-      });
-    });
-
-    return tokenRecords;
-  } catch (error) {
-    console.error('Error getting token usage history:', error);
-    return [];
-  }
-};
-
-/**
- * Get aggregated token usage statistics
- */
-export const getAggregatedTokenStats = async (): Promise<{
+export const getTokenUsageSummary = async (): Promise<{
   daily: Record<string, any>;
   monthly: Record<string, any>;
-  lifetime: TokenUsage & { count: number };
+  lifetime: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    count: number;
+  };
 }> => {
   try {
     const user = auth.currentUser;
     if (!user) {
       throw new Error('User not authenticated');
     }
-
-    const now = new Date();
-    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
-    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'); // YYYY-MM
-
+    
     const statsRef = doc(db, 'users', user.uid, 'stats', 'token_usage');
     const statsDoc = await getDoc(statsRef);
-
+    
     if (!statsDoc.exists()) {
-      // Create new stats document if it doesn't exist
-      await setDoc(statsRef, {
-        daily: {
-          [today]: {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: 0,
-            count: 0,
-            lastUpdated: now.toISOString()
-          }
-        },
-        monthly: {
-          [currentMonth]: {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: 0,
-            count: 0,
-            lastUpdated: now.toISOString()
-          }
-        },
-        lifetime: {
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0,
-          count: 0,
-          lastUpdated: now.toISOString()
-        }
-      });
+      throw new Error('Token usage stats not found');
     }
-
-    const statsData = statsDoc.data() || {};
-    return {
-      daily: statsData.daily || {},
-      monthly: statsData.monthly || {},
-      lifetime: {
-        promptTokens: statsData.lifetime?.promptTokens || 0,
-        completionTokens: statsData.lifetime?.completionTokens || 0,
-        totalTokens: statsData.lifetime?.totalTokens || 0,
-        count: statsData.lifetime?.count || 0
-      }
-    };
+    
+    return statsDoc.data() as any; // Cast to appropriate type
   } catch (error) {
-    console.error('Error getting aggregated token stats:', error);
+    console.error('Error getting token usage summary:', error);
     throw error;
   }
-};
+}
 
-// Get token usage summary for display on profile
-export const getTokenUsageSummary = async (): Promise<{
-  daily: { used: number; limit: number; percent: number };
-  monthly: { used: number; limit: number; percent: number };
-  lifetime: number;
-}> => {
-  try {
-    const stats = await getTokenUsageStats();
-    
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    
-    const dailyUsed = stats.daily[today]?.count || 0;
-    const monthlyUsed = stats.monthly[currentMonth]?.totalTokens || 0;
-    const lifetimeTokens = stats.lifetime.totalTokens || 0;
-    
-    return {
-      daily: {
-        used: dailyUsed,
-        limit: stats.limits.dailyLimit,
-        percent: Math.min(100, Math.round((dailyUsed / stats.limits.dailyLimit) * 100) || 0)
-      },
-      monthly: {
-        used: monthlyUsed,
-        limit: stats.limits.monthlyLimit,
-        percent: Math.min(100, Math.round((monthlyUsed / stats.limits.monthlyLimit) * 100) || 0)
-      },
-      lifetime: lifetimeTokens
-    };
-  } catch (error) {
-    console.error('Error getting usage summary:', error);
-    return {
-      daily: { used: 0, limit: 0, percent: 0 },
-      monthly: { used: 0, limit: 0, percent: 0 },
-      lifetime: 0
-    };
-  }
-};
 
 //------------------------------------------------------------------------------
 // Backwards Compatibility Functions
