@@ -6,8 +6,8 @@ import { auth } from '@/utils/firebaseClient';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
-import { setUserUID, getPassPhrase } from '@/utils/encryption';
-
+import { setUserUID } from '@/utils/encryption';
+import { getPassPhrase, decryptData } from '@/utils/encryption';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,7 +26,7 @@ const UpdatedEmotionChat = () => {
   const [emotion, setEmotion] = useState<Emotion | null>(null);
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<(JournalEntry & { userText?: string; bubbaReply?: string })[]>([]);
   const [passPhrase, setPassPhrase] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -35,7 +35,6 @@ const UpdatedEmotionChat = () => {
   const { subscription } = useSubscription();
   const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
   const { setCharacterSet } = useEmotionSettings();
-
   
   const [userCharacterSet, setUserCharacterSet] = useState<EmotionCharacterKey>('Bubba' as EmotionCharacterKey);
 
@@ -129,7 +128,31 @@ const UpdatedEmotionChat = () => {
     try {
       const loaded = await getJournalEntries("active");
       console.log(`✅ Loaded ${loaded.length} journal entries`);
-      setJournalEntries(loaded);
+      
+      // Decrypt entry content for display in JournalCard
+      const decryptedEntries = await Promise.all(
+        loaded.map(async (entry) => {
+          try {
+            const userText = await decryptData(entry.encryptedUserText || '');
+            const bubbaReply = await decryptData(entry.encryptedBubbaReply || '');
+            
+            return {
+              ...entry,
+              userText,
+              bubbaReply
+            };
+          } catch (error) {
+            console.error(`Failed to decrypt entry ${entry.timestamp}:`, error);
+            return {
+              ...entry,
+              userText: '[Failed to decrypt]',
+              bubbaReply: '[Failed to decrypt]'
+            };
+          }
+        })
+      );
+      
+      setJournalEntries(decryptedEntries);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
       toast({
@@ -151,9 +174,6 @@ const UpdatedEmotionChat = () => {
     }
 
     setIsLoading(true);
-    
-    // Keep the current response visible until new one arrives
-    // const currentResponse = response; // Removed as it is unused
     
     // Update chat history with user input
     const updatedHistory = [

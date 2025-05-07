@@ -7,9 +7,9 @@ interface OpenAIUsage {
 }
 
 interface ResponseCardProps {
-    response: string;
-    className?: string; // Add className as an optional property
-    usage?: OpenAIUsage | null;
+  response: string;
+  className?: string; // Add className as an optional property
+  usage?: OpenAIUsage | null;
 }
 
 const ResponseCard: React.FC<ResponseCardProps> = ({ response, className, usage }) => {
@@ -17,11 +17,12 @@ const ResponseCard: React.FC<ResponseCardProps> = ({ response, className, usage 
 
   return (
     <div className="response-display mt-4 relative bg-white p-4 rounded shadow">
-
-        <strong>Bubba's response:</strong>
+      <strong>Bubba's response:</strong>
       <div className={className}>{response}</div>
+      
+      {/* Added padding-top for spacing between response text and usage stats */}
       {usage && (
-        <div className="text-xs text-gray-500 absolute bottom-2 right-2">
+        <div className="text-xs text-gray-500 text-right pt-4 mt-2 border-t border-gray-100">
           Tokens: {usage.totalTokens} (Prompt: {usage.promptTokens}, Completion: {usage.completionTokens})
         </div>
       )}

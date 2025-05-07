@@ -5,35 +5,34 @@ import { JournalEntry } from '@/types/JournalEntry';
 import JournalCard from './Journal/JournalCard';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/utils/firebaseClient';
-import { setUserUID, decryptData, getPassPhrase } from '@/utils/encryption'; // Import directly from encryption.ts
+import { setUserUID, decryptData, getPassPhrase } from '@/utils/encryption';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { stopSpeaking } from '@/utils/tts';
-import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService'; // Import database functions from firebaseDataService.ts
+import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService';
 import { useToast } from '@/hooks/use-toast';
 
+// Define a type that extends JournalEntry to include decrypted fields
+type DecryptedJournalEntry = JournalEntry & {
+  userText: string;
+  bubbaReply: string;
+};
+
 const UpdatedJournalPage = () => {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [entries, setEntries] = useState<DecryptedJournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passPhrase, setPassPhrase] = useState<string | null>(null);
+
 
   const initializeUserData = useCallback(async (uid: string) => {
     setLoading(true);
     setError(null);
-    try {
-      setUserUID(uid);
-      // No need to fetch and store passphrase separately as encryption.ts will handle it
-      return true;
-    } catch (err) {
-      console.error('Failed to initialize user data:', err);
-      setError('Failed to initialize: ' + (err instanceof Error ? err.message : String(err)));
-      setLoading(false);
-      setEntries([]);
-      return false;
-    }
+
   }, []);
 
   const loadJournalEntries = useCallback(async () => {
@@ -44,32 +43,36 @@ const UpdatedJournalPage = () => {
 
     try {
       const encryptedEntries = await getJournalEntries('active');
+      console.log(`Loaded ${encryptedEntries.length} encrypted journal entries`);
 
       // Decrypt each entry's user text and Bubba reply
-      const decrypted = await Promise.all(
+      const decryptedEntries = await Promise.all(
         encryptedEntries.map(async (entry) => {
           try {
-            // Use the updated decryption functions
-            const userText = await decryptData(entry.encryptedUserText ?? '');
-            const bubbaReply = await decryptData(entry.encryptedBubbaReply ?? '');
+            if (!entry.encryptedUserText || !entry.encryptedBubbaReply) {
+              throw new Error('Entry is missing encrypted fields');
+            }
+
+            const userText = await decryptData(entry.encryptedUserText);
+            const bubbaReply = await decryptData(entry.encryptedBubbaReply);
 
             return {
               ...entry,
               userText,
               bubbaReply
-            };
+            } as DecryptedJournalEntry;
           } catch (decryptionError) {
             console.error(`Failed to decrypt journal entry ${entry.timestamp}:`, decryptionError);
             return {
               ...entry,
               userText: '[Failed to decrypt]',
               bubbaReply: '[Failed to decrypt]'
-            };
+            } as DecryptedJournalEntry;
           }
         })
       );
 
-      setEntries(decrypted);
+      setEntries(decryptedEntries);
     } catch (err) {
       console.error('Failed to load journal entries:', err);
       setError('Failed to load journal entries: ' + (err instanceof Error ? err.message : String(err)));
@@ -85,11 +88,28 @@ const UpdatedJournalPage = () => {
   }, [user, toast]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        setUserUID(firebaseUser.uid);
-        initializeUserData(firebaseUser.uid);
+    const unsubscribe = onAuthStateChanged(auth, async (user)  => {
+      if (user){
+        try {
+          setUser(user);
+          setUserUID(user.uid);
+          setIsAuthenticated(true);
+          const phrase = await getPassPhrase();
+          if (phrase) {
+            setPassPhrase(phrase);
+          }
+          initializeUserData(user.uid);
+          loadJournalEntries();
+        }
+        catch (error) {
+          console.error('Error initializing user data:', error);
+          setError('Failed to initialize user data: ' + (error instanceof Error ? error.message : String(error)));
+        }
+
+
+      } else {
+        // User not logged in, redirect to login
+        router.push('/login');
       }
     });
 
@@ -97,13 +117,7 @@ const UpdatedJournalPage = () => {
       unsubscribe();
       stopSpeaking();
     };
-  }, [initializeUserData]);
-
-  useEffect(() => {
-    if (user) {
-      loadJournalEntries();
-    }
-  }, [user, loadJournalEntries]);
+  }, [initializeUserData, loadJournalEntries, router]);
 
   const handleSoftDelete = async (timestamp: string) => {
     try {
@@ -111,30 +125,58 @@ const UpdatedJournalPage = () => {
         setError('User not authenticated.');
         return;
       }
+      
+      // First update UI optimistically
       setEntries((prev) => prev.filter((entry) => entry.timestamp !== timestamp));
-      await softDeleteJournalEntry(timestamp, user.uid);
-      toast({ title: "Entry Moved to Trash", description: "Journal entry has been moved to the trash." });
+      
+      // Then perform the actual delete operation
+      await softDeleteJournalEntry(timestamp);
+      
+      toast({ 
+        title: "Entry Moved to Trash", 
+        description: "Journal entry has been moved to the trash." 
+      });
     } catch (error) {
       console.error('Failed to delete entry:', error);
       setError('Failed to delete entry: ' + (error instanceof Error ? error.message : String(error)));
+      
+      // Reload entries on error to reset state
       loadJournalEntries();
-      toast({ title: "Error", description: "Failed to move entry to trash.", variant: "destructive" });
+      
+      toast({ 
+        title: "Error", 
+        description: "Failed to move entry to trash.", 
+        variant: "destructive" 
+      });
     }
   };
 
   const handleEdit = async (timestamp: string, newText: string) => {
     try {
       if (!user) {
-        setError('User not authenticated or encryption key not available.');
+        setError('User not authenticated.');
         return;
       }
-      await editJournalEntry(timestamp, newText, user.uid);
+      
+      // Perform the edit operation
+      await editJournalEntry(timestamp, newText);
+      
+      // Reload entries to show the updated content
       await loadJournalEntries();
-      toast({ title: "Entry Updated", description: "Your journal entry has been updated successfully." });
+      
+      toast({ 
+        title: "Entry Updated", 
+        description: "Your journal entry has been updated successfully." 
+      });
     } catch (error) {
       console.error('Failed to edit entry:', error);
       setError('Failed to edit entry: ' + (error instanceof Error ? error.message : String(error)));
-      toast({ title: "Error", description: "Failed to update your journal entry.", variant: "destructive" });
+      
+      toast({ 
+        title: "Error", 
+        description: "Failed to update your journal entry.", 
+        variant: "destructive" 
+      });
     }
   };
 

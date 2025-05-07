@@ -1,16 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // ─── Helpers ─────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
-
     function isUserOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-
     function isValidTTSPreferences() {
       return !('preferences' in request.resource.data) || (
         (!('ttsRate' in request.resource.data.preferences) ||
@@ -25,50 +22,60 @@ service cloud.firestore {
           (request.resource.data.preferences.ttsAutoplay is bool))
       );
     }
-
     function isValidTTSFeatureToggle() {
       return !('features' in request.resource.data) || 
              !('tts' in request.resource.data.features) || 
              (request.resource.data.features.tts is bool);
     }
-
+    function isValidIconPreferences() {
+      return !('icon' in request.resource.data) || (
+        (request.resource.data.icon is string &&
+         request.resource.data.icon.size() > 0 &&
+         request.resource.data.icon.size() <= 255) &&
+        (!('iconSize' in request.resource.data) ||
+         (request.resource.data.iconSize is number &&
+          request.resource.data.iconSize > 0 &&
+          request.resource.data.iconSize <= 512))
+      );
+    }
+    
     // ─── USERS ───────────────────────────────────────
     match /users/{userId} {
       allow read, create, delete: if isUserOwner(userId);
       allow update: if isUserOwner(userId) &&
                     isValidTTSPreferences() &&
-                    isValidTTSFeatureToggle();
-
-      match /chats/{chatId} {
+                    isValidTTSFeatureToggle() &&
+                    isValidIconPreferences();
+      
+      // Nested collections inside users
+      match /journal/{entryId} {
         allow read, write: if isUserOwner(userId);
+        
+        match /entries/{messageId} {
+          allow read, write, update, delete: if isUserOwner(userId);
+        }
       }
-
+      
       match /token_usage/{docId} {
         allow read, create: if isUserOwner(userId);
         allow update, delete: if false;
       }
-
+      
       match /stats/{statsId} {
         allow read, write: if isUserOwner(userId);
       }
     }
-
+    
     // ─── JOURNALS ────────────────────────────────────
-    match /users/{userId}/journal/{entryId}/entries {
+    match /journals/{userId}/entries/{entryId} {
       allow read, write, update, delete: if isUserOwner(userId);
     }
-
-    // ─── CHAT MESSAGES (GLOBAL/SHARED) ──────────────
-    match /chats/{chatId}/messages/{messageId} {
-      allow read, create: if isAuthenticated();
-      allow update, delete: if request.auth.uid == resource.data.sender;
-    }
-
+    
     // ─── USER ENCRYPTION KEYS ───────────────────────
     match /userKeys/{userId} {
       allow read, write: if isUserOwner(userId);
     }
-
+    
     // ─── ADMIN DOCS ─────────────────────────────────
     match /admin/{docId} {
       allow read, write: if false;

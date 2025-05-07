@@ -7,7 +7,7 @@ import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/chatServices';
+import { getPassPhrase } from '@/utils/encryption';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { resetConversation, askQuestion, startEmotionalSupportSession, saveChat } from "@/utils/chatServices";
 import * as chatService from '@/utils/chatServices';

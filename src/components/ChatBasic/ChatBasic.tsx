@@ -5,6 +5,7 @@ import { detectEmotion } from '@/components/emotion/EmotionDetector'; // Import 
 import EmotionIcon from '@/components/emotion/EmotionIcon'; // Import EmotionIcon component
 import { Emotion } from '@/components/emotion/emotionAssets'; // Import Emotion type
 
+
 interface OpenAIUsage {
   promptTokens: number;
   completionTokens: number;

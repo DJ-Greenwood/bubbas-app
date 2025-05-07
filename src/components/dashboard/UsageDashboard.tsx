@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, AlertCircle, CheckCircle } from 'lucide-react';
-import { getTokenUsageStats, getTokenUsageSummary } from '@/utils/firebaseDataService';
+import { getTokenUsageStats, getTokenUsageSummary } from '@/utils/TokenDataService';
 import { useSubscription } from '@/utils/subscriptionService';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';

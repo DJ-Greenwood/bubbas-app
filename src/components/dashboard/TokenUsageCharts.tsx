@@ -47,7 +47,14 @@ const TokenUsageCharts = () => {
       setLoading(true);
       try {
         // Get token usage history
-        const history = await getTokenUsageHistory(timeframe);
+        const timeframeMapping: Record<'day' | 'week' | 'month' | 'all', { startDate?: Date; endDate?: Date }> = {
+          day: { startDate: new Date(new Date().setHours(0, 0, 0, 0)), endDate: new Date() },
+          week: { startDate: new Date(new Date().setDate(new Date().getDate() - 7)), endDate: new Date() },
+          month: { startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)), endDate: new Date() },
+          all: {}
+        };
+
+        const history = await getTokenUsageHistory(timeframeMapping[timeframe]);
         
         // Group by day for time-series data
         const groupedByDay: Record<string, {
