@@ -156,8 +156,8 @@ export const getPassPhrase = async (): Promise<string | null> => {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      const userData = userDocSnap.data() as { preferences?: { security?: { passPhrase?: string } } };
-      const passPhrase = userData?.preferences?.security?.passPhrase;
+      const userData = userDocSnap.data() as { preferences?: { security?: { passphrase?: string } } };
+      const passPhrase = userData?.preferences?.security?.passphrase;
 
       if (passPhrase) {
         return passPhrase;

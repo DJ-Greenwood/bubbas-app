@@ -8,8 +8,9 @@ import {
   recoverJournalEntry,
   hardDeleteJournalEntry,
   getUserEmotionCharacterSet,
-  saveTokenUsage
+  
 } from '@/utils/firebaseDataService';
+import { saveTokenUsage } from './TokenDataService';
 
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';

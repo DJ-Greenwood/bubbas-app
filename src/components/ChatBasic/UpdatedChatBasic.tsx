@@ -1,12 +1,12 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchUserProfile } from '@/utils/userProfileService';
 import { saveJournalEntry } from '@/utils/firebaseDataService';
 
 // Import custom hooks
 import useChatService from '@/hooks/useChatService';
-import useSubscriptionLimits, { SubscriptionTier } from '@/hooks/useSubscriptionLimits';
+import useSubscriptionLimits from '@/hooks/useSubscriptionLimits';
 
 // Import reusable components
 import ChatHeader from '@/components/Chat/ChatHeader';
@@ -43,19 +43,35 @@ const UpdatedChatBasic = () => {
   const [emotionIconSize, setEmotionIconSize] = useState<number | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
+  
+  // Use ref to track initialization status
+  const hasInitialized = useRef(false);
 
   // Initialize chat only once when component mounts
   useEffect(() => {
-    // Define a function to initialize the chat
-    const initialize = async () => {
-      await initializeChat('emotional');
-    };
-    
-    // Call it immediately
-    initialize();
-    
-    // Empty dependency array ensures this only runs once
-  }, []);
+    // Only initialize if it hasn't been done yet
+    if (!hasInitialized.current) {
+      const initialize = async () => {
+        try {
+          console.log("Initializing chat...");
+          await initializeChat('emotional');
+          hasInitialized.current = true;
+          console.log("Chat initialized successfully");
+        } catch (error) {
+          console.error("Failed to initialize chat:", error);
+          // Reset initialization flag so we can try again
+          hasInitialized.current = false;
+          toast({
+            title: "Initialization Error",
+            description: "Failed to start chat. Please refresh the page.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      initialize();
+    }
+  }, [initializeChat, toast]);
 
   // Load user preferences when authenticated
   useEffect(() => {
@@ -92,7 +108,15 @@ const UpdatedChatBasic = () => {
     
     // Send message to chat service
     const result = await sendMessage(userInput);
-    if (!result) return;
+    if (!result) {
+      console.error("Failed to get response from chat service");
+      toast({
+        title: "Message Error",
+        description: "Failed to send your message. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Increment usage counter
     incrementUsage();
@@ -100,6 +124,7 @@ const UpdatedChatBasic = () => {
     // Save the conversation if user is authenticated
     if (isAuthenticated) {
       try {
+        console.log("Saving journal entry...");
         await saveJournalEntry(
           userInput,
           result.reply,

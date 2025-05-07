@@ -98,6 +98,7 @@ export const useChatService = () => {
       setIsLoading(false);
     }
   }, [toast]);
+  
 
   const resetChat = useCallback(async (mode: 'emotional' | 'helpful' = 'helpful') => {
     setResponse("");

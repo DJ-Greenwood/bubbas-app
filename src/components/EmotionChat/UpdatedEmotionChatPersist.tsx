@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth } from '@/utils/firebaseClient';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
-import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase, decryptData } from '@/utils/encryption';
+
+import { setUserUID, getPassPhrase, decryptData } from '@/utils/encryption';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,38 +35,51 @@ const UpdatedEmotionChat = () => {
   const { subscription } = useSubscription();
   const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
   const { setCharacterSet } = useEmotionSettings();
+  const hasInitialized = useRef(false);
   
   const [userCharacterSet, setUserCharacterSet] = useState<EmotionCharacterKey>('Bubba' as EmotionCharacterKey);
 
   // Initialize Bubbas in emotional support mode
   useEffect(() => {
-    const initializeChat = async () => {
-      try {
-        await startEmotionalSupportSession();
-        const initialMessage = "Hi there! I'm Bubba, your AI emotional support companion. How are you feeling today?";
-        setResponse(initialMessage);
-        
-        // Initialize chat history with system message
-        setChatHistory([{ role: "assistant", content: initialMessage }]);
-      } catch (error) {
-        console.error("Failed to initialize chat service:", error);
-        toast({
-          title: "Initialization Error",
-          description: "There was a problem starting the chat. Please try again.",
-          variant: "destructive"
-        });
-      }
-    };
-    
-    initializeChat();
+    if (!hasInitialized.current) {
+      const initializeChat = async () => {
+        try {
+          console.log("Initializing emotional chat session...");
+          await startEmotionalSupportSession();
+          const initialMessage = "Hi there! I'm Bubba, your AI emotional support companion. How are you feeling today?";
+          setResponse(initialMessage);
+          
+          // Initialize chat history with system message
+          setChatHistory([{ role: "assistant", content: initialMessage }]);
+          hasInitialized.current = true;
+        } catch (error) {
+          console.error("Failed to initialize chat service:", error);
+          hasInitialized.current = false;
+          toast({
+            title: "Initialization Error",
+            description: "There was a problem starting the chat. Please try again.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      initializeChat();
+    }
   }, [toast]);
 
   // Listen for auth state and set user
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        console.log("User authenticated:", firebaseUser.uid);
         setUser(firebaseUser);
-        setUserUID(firebaseUser.uid);
+        setUserUID(firebaseUser.uid); // Set user UID for encryption
+        
+      } else {
+        console.log("No user authenticated");
+        setUser(null);
+        setUserUID(""); // Clear user UID
+
       }
     });
     return () => unsubscribe();
@@ -126,6 +139,7 @@ const UpdatedEmotionChat = () => {
     }
     
     try {
+      console.log("Loading journal entries...");
       const loaded = await getJournalEntries("active");
       console.log(`✅ Loaded ${loaded.length} journal entries`);
       
@@ -133,8 +147,12 @@ const UpdatedEmotionChat = () => {
       const decryptedEntries = await Promise.all(
         loaded.map(async (entry) => {
           try {
-            const userText = await decryptData(entry.encryptedUserText || '');
-            const bubbaReply = await decryptData(entry.encryptedBubbaReply || '');
+            if (!entry.encryptedUserText || !entry.encryptedBubbaReply) {
+              throw new Error("Entry missing encrypted fields");
+            }
+            
+            const userText = await decryptData(entry.encryptedUserText);
+            const bubbaReply = await decryptData(entry.encryptedBubbaReply);
             
             return {
               ...entry,
@@ -165,7 +183,8 @@ const UpdatedEmotionChat = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!userInput.trim()) return;
+    const trimmedInput = userInput.trim();
+    if (!trimmedInput) return;
     
     // Check if user has reached limit
     if (limitError) {
@@ -178,7 +197,7 @@ const UpdatedEmotionChat = () => {
     // Update chat history with user input
     const updatedHistory = [
       ...chatHistory,
-      { role: "user", content: userInput }
+      { role: "user", content: trimmedInput }
     ];
     setChatHistory(updatedHistory);
     
@@ -186,11 +205,13 @@ const UpdatedEmotionChat = () => {
 
     try {
       // Detect emotion from user input
-      const detectedEmotion = await detectEmotion(userInput);
+      console.log("Detecting emotion from input...");
+      const detectedEmotion = await detectEmotion(trimmedInput);
       setEmotion(detectedEmotion);
 
       // Get response from chat service
-      const { reply, usage } = await askQuestion(userInput);
+      console.log("Asking question to chat service...");
+      const { reply, usage } = await askQuestion(trimmedInput);
       setResponse(reply);
       
       // Update chat history with AI response
@@ -222,13 +243,13 @@ const UpdatedEmotionChat = () => {
             console.log("Saving journal entry with character set:", userCharacterSet);
             
             await saveJournalEntry(
-              userInput,
+              trimmedInput,
               reply,
               detectedEmotion,
               { 
-                promptTokens: usage.promptTokens, 
-                completionTokens: usage.completionTokens, 
-                totalTokens: usage.totalTokens 
+                promptTokens: usage.promptTokens || 0, 
+                completionTokens: usage.completionTokens || 0, 
+                totalTokens: usage.totalTokens || 0 
               }
             );
             console.log("✅ Journal entry saved successfully");
