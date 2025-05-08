@@ -1,25 +1,23 @@
-import { Emotion } from '@/components/emotion/emotionAssets'; // Adjust the import path as necessary
+// src/types/JournalEntry.ts
 import { EmotionCharacterKey } from './emotionCharacters';
+import { Emotion } from '@/components/emotion/emotionAssets';
 
 export interface JournalEntry {
   version: number;
-  createdAt?: string;
   timestamp: string;
-  emotion: Emotion;
-  encryptedUserText?: string; 
-  encryptedBubbaReply?: string;
+  createdAt: string;
+  encryptedUserText: string;
+  encryptedBubbaReply: string;
+  emotion?: Emotion;
+  detectedEmotionText?: string;
   deleted: boolean;
-  status: string;  
-  lastEdited: string;
-  lastEditedBy: string;
-  usage: {
+  status: 'active' | 'trash';
+  lastEdited?: string;
+  lastEditedBy?: string;
+  emotionCharacterSet?: EmotionCharacterKey; // Character set used for this entry
+  usage?: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
   };
-  detectedEmotionText?: string; // Added detected emotion to the journal entry
-  emotionCharacterSet: EmotionCharacterKey; // Added character set to the journal entry
-
-
 }
-

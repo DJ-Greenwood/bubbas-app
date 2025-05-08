@@ -134,7 +134,12 @@ const JournalCard: React.FC<JournalCardProps> = ({
             <span className="ml-2 text-blue-500 text-xs">(Edited)</span>
           )}
         </div>
-        {entry.emotion && <EmotionIcon emotion={entry.emotion} />}
+        {entry.emotion && (
+          <EmotionIcon 
+            emotion={entry.emotion} 
+            characterSet={entry.emotionCharacterSet || 'bubba'} 
+          />
+        )}
       </div>
 
       {decryptionError && (

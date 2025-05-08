@@ -77,7 +77,7 @@ export const getUserEmotionCharacterSet = async (): Promise<EmotionCharacterKey 
 // Journal Entry Operations
 //------------------------------------------------------------------------------
 
-// Save a new journal entry
+// Modified saveJournalEntry function to ensure emotionCharacterSet is saved
 export const saveJournalEntry = async (
   userText: string,
   bubbaReply: string,
@@ -113,12 +113,10 @@ export const saveJournalEntry = async (
       status: 'active',
       lastEdited: '',
       lastEditedBy: '',
-      emotionCharacterSet: characterSet || 'Bubba'
+      emotionCharacterSet: characterSet || 'bubba' // Ensure we save the character set
     };
 
     // Fix: Use a proper Firestore path with odd number of segments
-    // Instead of: users/{uid}/journal/{entryId}/entries/main
-    // Use: users/{uid}/journal/{entryId}
     const journalRef = doc(db, 'users', uid, 'journal', timestamp);
     await setDoc(journalRef, newEntry);
     
