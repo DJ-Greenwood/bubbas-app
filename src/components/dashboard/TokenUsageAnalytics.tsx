@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getTokenUsageHistory, getAggregatedTokenStats, TokenRecord } from '@/utils/tokenPersistenceService';
-import { getTokenUsageStats } from '@/utils/tokenTrackingService';
+import { getTokenUsageHistory, getAggregatedTokenStats, TokenRecord, getTokenUsageStats } from '@/utils/TokenDataService';
+
 import { useSubscription } from '@/utils/subscriptionService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { AlertCircle } from 'lucide-react';
@@ -45,7 +45,14 @@ const TokenUsageAnalytics = () => {
         setLoading(true);
         
         // Load token usage history
-        const history = await getTokenUsageHistory(timeframe);
+        const timeframeMapping: Record<'day' | 'week' | 'month' | 'all', { startDate?: Date; endDate?: Date }> = {
+          day: { startDate: new Date(new Date().setHours(0, 0, 0, 0)), endDate: new Date() },
+          week: { startDate: new Date(new Date().setDate(new Date().getDate() - 7)), endDate: new Date() },
+          month: { startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)), endDate: new Date() },
+          all: {}
+        };
+
+        const history = await getTokenUsageHistory(timeframeMapping[timeframe]);
         setTokenHistory(history);
         
         // Load aggregated token stats

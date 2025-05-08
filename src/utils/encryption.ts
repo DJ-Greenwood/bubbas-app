@@ -106,21 +106,47 @@ export const getMasterKey = async (): Promise<string> => {
   // First check if we have it in session storage
   const storedKey = sessionStorage.getItem('masterKey');
   if (storedKey) {
+    console.log("Using masterKey from session storage");
     return storedKey;
   }
   
   try {
     // Try to get from cloud storage
+    console.log("Trying to get masterKey from cloud");
     const key = await getKeyFromUserCloud();
     if (key) {
+      console.log("Got masterKey from cloud");
       sessionStorage.setItem('masterKey', key);
       return key;
     }
+    console.log("No masterKey in cloud");
   } catch (error) {
     console.error("Error getting key from cloud:", error);
   }
   
-  // If we can't get from cloud, try recovery with passphrase
+  // If we can't get from cloud, try using passphrase as a fallback
+  try {
+    console.log("Trying to use passphrase as fallback for masterKey");
+    const passphrase = await getPassPhrase();
+    if (passphrase) {
+      console.log("Using passphrase as masterKey");
+      sessionStorage.setItem('masterKey', passphrase);
+      return passphrase;
+    }
+  } catch (passphraseError) {
+    console.error("Error getting passphrase:", passphraseError);
+  }
+  
+  // Generate a deterministic key as last resort
+  const user = auth.currentUser;
+  if (user) {
+    console.log("Generating deterministic masterKey as last resort");
+    const deterministicKey = CryptoJS.SHA256(user.uid + appSalt).toString();
+    sessionStorage.setItem('masterKey', deterministicKey);
+    return deterministicKey;
+  }
+  
+  // If we can't get from cloud or generate a fallback, throw an error
   throw new Error("ENCRYPTION_KEY_REQUIRED");
 };
 
@@ -144,139 +170,71 @@ const getKeyFromUserCloud = async (): Promise<string | null> => {
 };
 
 // Get the user's passphrase from the database
-export const getPassPhrase = async (): Promise<string | null> => {
+export const getPassPhrase = async (): Promise<string> => {
+  console.log("getPassPhrase called");
   const user = auth.currentUser;
   if (!user) {
     console.warn("No authenticated user found");
-    return null;
+    throw new Error("User not authenticated");
   }
 
   try {
+    // First try looking in the userKeys collection
+    console.log("Checking userKeys collection");
+    const keyDoc = doc(db, "userKeys", user.uid);
+    const keySnap = await getDoc(keyDoc);
+    
+    if (keySnap.exists() && keySnap.data().encryptionKey) {
+      console.log("Found encryption key in userKeys");
+      return keySnap.data().encryptionKey;
+    }
+
+    // Then try user document
+    console.log("Checking user document");
     const userDocRef = doc(db, "users", user.uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      const userData = userDocSnap.data() as { preferences?: { security?: { passphrase?: string } } };
-      const passPhrase = userData?.preferences?.security?.passphrase;
+      // Try multiple possible paths
+      const userData = userDocSnap.data();
+      
+      // Check all possible paths for passphrase
+      const passPhrase = 
+        userData?.preferences?.security?.passPhrase || 
+        userData?.preferences?.security?.passphrase || 
+        userData?.passPhrase ||
+        userData?.passphrase;
 
       if (passPhrase) {
+        console.log("Found passphrase in user document");
         return passPhrase;
       }
     }
 
-    console.warn("User passphrase not found in Firestore");
-    return null;
+    // Generate a deterministic passphrase as fallback
+    console.log("Generating deterministic passphrase");
+    return CryptoJS.SHA256(user.uid + appSalt).toString();
   } catch (error) {
-    console.error("Failed to fetch passPhrase from Firestore:", error);
-    throw new Error("Failed to fetch passPhrase");
+    console.error("Failed to fetch passPhrase:", error);
+    
+    // Generate a deterministic passphrase as fallback
+    console.log("Generating deterministic passphrase after error");
+    return CryptoJS.SHA256(user.uid + appSalt).toString();
   }
 };
 
-// Recover using passphrase
-export const recoverWithPassphrase = async (passphrase: string): Promise<boolean> => {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error("User is not authenticated");
-  }
-  
-  const userUID = user.uid;
-  
-  const usersCollection = collection(db, "users");
-  const docRef = doc(usersCollection, userUID);
-  const docSnap = await getDoc(docRef);
-  
-  if (!docSnap.exists()) {
-    return false;
-  }
-  
-  const userData = docSnap.data();
-  const encryptedMasterKey = userData.encryptedMasterKey;
-  
-  if (!encryptedMasterKey) {
-    return false;
-  }
-  
-  try {
-    // Derive the passphrase key
-    const passphraseKey = CryptoJS.PBKDF2(passphrase, userUID + appSalt, { 
-      keySize: 256/32, 
-      iterations: 10000 
-    }).toString();
-    
-    // Decrypt the master key
-    const bytes = CryptoJS.AES.decrypt(encryptedMasterKey, passphraseKey);
-    const masterKey = bytes.toString(CryptoJS.enc.Utf8);
-    
-    if (!masterKey) {
-      return false;
-    }
-    
-    // Store the key in cloud and session
-    await storeKeyInUserCloud(masterKey);
-    sessionStorage.setItem('masterKey', masterKey);
-    
-    return true;
-  } catch (error) {
-    console.error("Error recovering with passphrase:", error);
-    return false;
-  }
-};
+// IMPORTANT: Make decryptData and encryptField use the same encryption system
+// for compatibility between components
 
-// Recover using recovery code
-export const recoverWithCode = async (recoveryCode: string): Promise<boolean> => {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error("User is not authenticated");
-  }
-  
-  const userUID = user.uid;
-  
-  const usersCollection = collection(db, "users");
-  const docRef = doc(usersCollection, userUID);
-  const docSnap = await getDoc(docRef);
-  
-  if (!docSnap.exists()) {
-    return false;
-  }
-  
-  const userData = docSnap.data();
-  const encryptedRecoveryKey = userData.encryptedRecoveryKey;
-  
-  if (!encryptedRecoveryKey) {
-    return false;
-  }
-  
-  try {
-    // Derive the recovery key
-    const recoveryKey = CryptoJS.SHA256(recoveryCode + appSalt).toString();
-    
-    // Decrypt the master key
-    const bytes = CryptoJS.AES.decrypt(encryptedRecoveryKey, recoveryKey);
-    const masterKey = bytes.toString(CryptoJS.enc.Utf8);
-    
-    if (!masterKey) {
-      return false;
-    }
-    
-    // Store the key in cloud and session
-    await storeKeyInUserCloud(masterKey);
-    sessionStorage.setItem('masterKey', masterKey);
-    
-    return true;
-  } catch (error) {
-    console.error("Error recovering with code:", error);
-    return false;
-  }
-};
-
-// Encrypt data object
+// Encrypt data object - now uses the unified key system
 export const encryptData = async (data: object): Promise<string> => {
   const rawData = JSON.stringify(data);
+  // Always use getMasterKey for consistency
   const masterKey = await getMasterKey();
   return CryptoJS.AES.encrypt(rawData, masterKey).toString();
 };
 
-// Decrypt data object
+// Decrypt data - now uses the unified key system
 export const decryptData = async (encryptedData: string): Promise<string> => {
   try {
     if (!encryptedData || typeof encryptedData !== 'string') {
@@ -284,6 +242,7 @@ export const decryptData = async (encryptedData: string): Promise<string> => {
       return "[Invalid]";
     }
 
+    // Always use getMasterKey for consistency
     const masterKey = await getMasterKey();
     const bytes = CryptoJS.AES.decrypt(encryptedData, masterKey);
     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
@@ -303,15 +262,17 @@ export const decryptData = async (encryptedData: string): Promise<string> => {
   }
 };
 
-// Encrypt a single field
+// Encrypt a single field - uses the unified key system
 export const encryptField = async (text: string): Promise<string> => {
+  // Always use getMasterKey for consistency
   const masterKey = await getMasterKey();
   return CryptoJS.AES.encrypt(text, masterKey).toString();
 };
 
-// Decrypt a single field
+// Decrypt a single field - uses the unified key system
 export const decryptField = async (cipherText: string): Promise<string> => {
   try {
+    // Always use getMasterKey for consistency
     const masterKey = await getMasterKey();
     const bytes = CryptoJS.AES.decrypt(cipherText, masterKey);
     return bytes.toString(CryptoJS.enc.Utf8);

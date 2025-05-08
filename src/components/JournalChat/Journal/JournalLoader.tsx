@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/utils/firebaseClient';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { getCurrentUserUid } from '@/utils/firebaseDataService';
+
 import { setUserUID, getMasterKey } from '@/utils/encryption'; // Use getMasterKey instead
 
 import { ReactNode } from 'react';

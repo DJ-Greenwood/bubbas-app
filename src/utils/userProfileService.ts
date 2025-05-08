@@ -98,11 +98,11 @@ export const createUserProfile = async (user: string, trimmedEmail: string, trim
           username: '', // Empty string as default
           phoneNumber: '', // Empty string as default
           security: {
-            passphrase: trimmedPassphrase,  
+            passPhrase: trimmedPassphrase,  
           },
           timezone: 'UTC', // Default timezone
           localStorageEnabled: true, // Default to enabled
-          emotionCharacterSet: 'Bubba' as EmotionCharacterKey, // Default character
+          emotionCharacterSet: 'Bubba', // Default character
           emotionIconSize: 32, // Default size
           theme: 'system', // Default theme
           ttsVoice: '', // Empty by default
@@ -117,7 +117,7 @@ export const createUserProfile = async (user: string, trimmedEmail: string, trim
           chatsToday: 0,
           lastChatDate: now
         }
-      };
+      } as UserProfileData;
       
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, newUserProfile);

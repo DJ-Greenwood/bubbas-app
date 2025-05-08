@@ -116,23 +116,22 @@ export const saveJournalEntry = async (
       emotionCharacterSet: characterSet || 'Bubba'
     };
 
-    // Path matches Firestore rules: /users/{userId}/journal/{entryId}/entries/{messageId}
-    const journalEntryId = timestamp; // Use timestamp as the entry ID
-    const entriesRef = collection(db, 'users', uid, 'journal', journalEntryId, 'entries');
-    
-    // Use a consistent document ID of 'main' for the entry
-    await setDoc(doc(entriesRef, 'main'), newEntry);
+    // Fix: Use a proper Firestore path with odd number of segments
+    // Instead of: users/{uid}/journal/{entryId}/entries/main
+    // Use: users/{uid}/journal/{entryId}
+    const journalRef = doc(db, 'users', uid, 'journal', timestamp);
+    await setDoc(journalRef, newEntry);
     
     // Make sure token usage is saved separately as well for billing persistence
     await saveTokenUsage(
       usage,
       'journal',
-      journalEntryId,
+      timestamp,
       userText.substring(0, 50) + (userText.length > 50 ? '...' : '')
     );
     
     console.log('✅ Saved journal entry!');
-    return { id: journalEntryId, ...newEntry };
+    return { id: timestamp, ...newEntry };
   } catch (error) {
     console.error('❌ Error saving journal entry:', error);
     throw error;
@@ -147,7 +146,8 @@ export const editJournalEntry = async (
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
-    const ref = doc(db, 'users', userUID, 'journal', entryId, 'entries', 'main');
+    // Fix: Update path to match the new structure
+    const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
     
     if (!docSnap.exists()) {
@@ -179,7 +179,7 @@ export const getJournalEntries = async (
   try {
     const userUID = uid || getCurrentUserUid();
     
-    // First, get all journal entry IDs
+    // Fix: Updated to match the new structure
     const journalRef = collection(db, 'users', userUID, 'journal');
     const journalSnapshot = await getDocs(journalRef);
     
@@ -189,39 +189,24 @@ export const getJournalEntries = async (
     }
     
     const entries: JournalEntry[] = [];
-    const fetchPromises: Promise<void>[] = [];
     
-    // For each journal entry, get the 'main' document from its entries subcollection
-    for (const journalDoc of journalSnapshot.docs) {
-      const entryId = journalDoc.id;
-      const mainEntryRef = doc(db, 'users', userUID, 'journal', entryId, 'entries', 'main');
+    // Process each journal document directly
+    for (const doc of journalSnapshot.docs) {
+      const data = doc.data() as JournalEntry;
       
-      const fetchPromise = getDoc(mainEntryRef).then(entryDoc => {
-        if (entryDoc.exists()) {
-          const data = entryDoc.data() as JournalEntry;
-          
-          // Only add entries with the correct status
-          if (data.status === status) {
-            // For backward compatibility - if emotionCharacterSet is missing, use 'Bubba'
-            if (!data.emotionCharacterSet) {
-              data.emotionCharacterSet = 'Bubba';
-            }
-            
-            entries.push({
-              ...data,
-              timestamp: entryId // Use journal doc ID as timestamp
-            });
-          }
+      // Only add entries with the correct status
+      if (data.status === status) {
+        // For backward compatibility - if emotionCharacterSet is missing, use 'Bubba'
+        if (!data.emotionCharacterSet) {
+          data.emotionCharacterSet = 'Bubba';
         }
-      }).catch(error => {
-        console.error(`Error fetching document for journal ${entryId}:`, error);
-      });
-      
-      fetchPromises.push(fetchPromise);
+        
+        entries.push({
+          ...data,
+          timestamp: doc.id // Use doc ID as timestamp
+        });
+      }
     }
-    
-    // Wait for all fetches to complete
-    await Promise.all(fetchPromises);
     
     // Sort by timestamp descending
     entries.sort((a, b) => {
@@ -244,7 +229,8 @@ export const softDeleteJournalEntry = async (
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
-    const ref = doc(db, 'users', userUID, 'journal', entryId, 'entries', 'main');
+    // Fix: Update path to match the new structure
+    const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
     
     if (!docSnap.exists()) {
@@ -272,7 +258,8 @@ export const recoverJournalEntry = async (
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
-    const ref = doc(db, 'users', userUID, 'journal', entryId, 'entries', 'main');
+    // Fix: Update path to match the new structure
+    const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
     
     if (!docSnap.exists()) {
@@ -300,7 +287,8 @@ export const hardDeleteJournalEntry = async (
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
-    const ref = doc(db, 'users', userUID, 'journal', entryId, 'entries', 'main');
+    // Fix: Update path to match the new structure
+    const ref = doc(db, 'users', userUID, 'journal', entryId);
     const entryDoc = await getDoc(ref);
     
     if (!entryDoc.exists()) {
@@ -309,16 +297,6 @@ export const hardDeleteJournalEntry = async (
     
     // Delete the entry document
     await deleteDoc(ref);
-    
-    // Optional: Delete the journal entry collection itself if it's now empty
-    // You may want to leave this commented out initially to verify things work
-    const entriesRef = collection(db, 'users', userUID, 'journal', entryId, 'entries');
-    const entriesSnapshot = await getDocs(entriesRef);
-    
-    if (entriesSnapshot.empty) {
-      // If no more entries, delete the parent journal document
-      await deleteDoc(doc(db, 'users', userUID, 'journal', entryId));
-    }
     
     // Note: We do NOT delete the token usage record - it stays for billing/analytics
     

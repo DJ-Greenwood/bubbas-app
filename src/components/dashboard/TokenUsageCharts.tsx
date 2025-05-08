@@ -8,8 +8,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
-import { getTokenUsageHistory, getAggregatedTokenStats } from '@/utils/firebaseDataService';
-import { getTokenUsageStats } from '@/utils/firebaseDataService';
+import { getTokenUsageHistory, getAggregatedTokenStats, getTokenUsageStats } from '@/utils/TokenDataService';
+
 import { useSubscription } from '@/utils/subscriptionService';
 import { AlertCircle } from 'lucide-react';
 

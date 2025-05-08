@@ -7,6 +7,7 @@ import { decryptField } from '@/utils/encryption'; // Import directly from encry
 import JournalTTSButton from './JournalTTSButton';
 import { useSubscription } from '@/utils/subscriptionService';
 
+
 interface JournalCardProps {
   entry: JournalEntry;
   onEdit?: (updatedText: string) => void;

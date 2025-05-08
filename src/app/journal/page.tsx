@@ -8,6 +8,7 @@ import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
 import JournalPage from '../../components/JournalChat/JournalPage';
 import JournalWraper from '../../components/JournalChat/Journal/JournalLoader';
 
+
 export default function Journal() {
 return (
   <>

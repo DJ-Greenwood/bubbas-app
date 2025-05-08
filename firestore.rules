@@ -47,13 +47,9 @@ service cloud.firestore {
                     isValidTTSFeatureToggle() &&
                     isValidIconPreferences();
       
-      // Nested collections inside users
+      // Updated journal structure - direct documents instead of nested collections
       match /journal/{entryId} {
-        allow read, write: if isUserOwner(userId);
-        
-        match /entries/{messageId} {
-          allow read, write, update, delete: if isUserOwner(userId);
-        }
+        allow read, write, update, delete: if isUserOwner(userId);
       }
       
       match /token_usage/{docId} {
@@ -66,7 +62,8 @@ service cloud.firestore {
       }
     }
     
-    // ─── JOURNALS ────────────────────────────────────
+    // ─── JOURNALS - Legacy ────────────────────────────────────
+    // Keep this for backwards compatibility
     match /journals/{userId}/entries/{entryId} {
       allow read, write, update, delete: if isUserOwner(userId);
     }

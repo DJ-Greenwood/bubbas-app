@@ -5,17 +5,32 @@ import { JournalEntry } from '@/types/JournalEntry';
 import JournalCard from './Journal/JournalCard';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/utils/firebaseClient';
-import { setUserUID, decryptData, getPassPhrase } from '@/utils/encryption';
+import { setUserUID } from '@/utils/encryption';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { stopSpeaking } from '@/utils/tts';
 import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService';
 import { useToast } from '@/hooks/use-toast';
 
+// Debug configuration
+const DEBUG_MODE = process.env.NODE_ENV === 'development';
+
+// Debug utility function
+const debug = (component: string, message: string, data?: any) => {
+  if (DEBUG_MODE) {
+    const timestamp = new Date().toISOString().substring(11, 23);
+    if (data) {
+      console.log(`[${timestamp}][${component}] ${message}`, data);
+    } else {
+      console.log(`[${timestamp}][${component}] ${message}`);
+    }
+  }
+};
+
 // Define a type that extends JournalEntry to include decrypted fields
 type DecryptedJournalEntry = JournalEntry & {
-  userText: string;
-  bubbaReply: string;
+  userText?: string;
+  bubbaReply?: string;
 };
 
 const UpdatedJournalPage = () => {
@@ -25,133 +40,76 @@ const UpdatedJournalPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  
-  const [passPhrase, setPassPhrase] = useState<string | null>(null);
   const entriesLoaded = useRef(false);
-
 
   // Listen for auth state and set user
   useEffect(() => {
+    debug('JournalPage', 'Setting up auth listener', undefined);
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        console.log("User authenticated:", firebaseUser.uid);
+        debug('JournalPage', `User authenticated: ${firebaseUser.uid.substring(0, 5)}...`, undefined);
         setUser(firebaseUser);
         setUserUID(firebaseUser.uid); // Set user UID for encryption
-
       } else {
-        console.log("No user authenticated");
+        debug('JournalPage', 'No user authenticated', undefined);
         setUser(null);
-        setUserUID(""); // Clear user UID for encryption
-        setEntries([]); // Clear entries on logout
         // Redirect to login if no user
         router.push('/login');
       }
     });
     return () => {
+      debug('JournalPage', 'Cleaning up auth listener', undefined);
       unsubscribe();
       stopSpeaking();
     };
   }, [router]);
 
-  // Fetch passphrase
+  // Load journal entries when user is available
   useEffect(() => {
-    const init = async () => {
-      if (!user) return;
-      
-      try {
-        // Get passphrase first - this is critical for encryption
-        const phrase = await getPassPhrase();
-        if (phrase) {
-          setPassPhrase(phrase);
-          console.log("✅ Passphrase successfully loaded");
-        } else {
-          console.error("No passphrase returned from getPassPhrase()");
-          toast({
-            title: "Encryption Error",
-            description: "Failed to retrieve your encryption key. Journal entries cannot be displayed.",
-            variant: "destructive"
-          });
-          setError('Failed to get encryption key. Please try refreshing the page.');
-        }
-      } catch (error) {
-        console.error("Failed to fetch passphrase:", error);
-        toast({
-          title: "Data Loading Error",
-          description: "Failed to retrieve your encryption key. Journal entries cannot be displayed.",
-          variant: "destructive"
-        });
-        setError('Failed to get encryption key. Please try refreshing the page.');
-      }
-    };
-    
-    init();
-  }, [user, toast]);
-
-  // Load journal entries when both user and passphrase are available
-  useEffect(() => {
-    if (user && passPhrase && !entriesLoaded.current) {
+    if (user && !entriesLoaded.current) {
+      debug('JournalPage', 'User available, loading journal entries', undefined);
       loadJournalEntries();
     }
-  }, [user, passPhrase]);
+  }, [user]);
 
   const loadJournalEntries = async () => {
-    if (!user || !passPhrase) {
-      console.log("Cannot load journal entries - missing user or passphrase");
+    if (!user) {
+      debug('JournalPage', 'Cannot load journal entries - no user', undefined);
       return;
     }
     
+    debug('JournalPage', 'Starting to load journal entries', undefined);
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Loading journal entries from Firestore...');
+      debug('JournalPage', `Fetching entries for user: ${user.uid.substring(0, 5)}...`, undefined);
       const loaded = await getJournalEntries('active', user.uid);
-      console.log(`✅ Loaded ${loaded.length} journal entries`);
+      debug('JournalPage', `✅ Loaded ${loaded.length} journal entries`, undefined);
       
       if (loaded.length === 0) {
+        debug('JournalPage', 'No entries found', undefined);
         setEntries([]);
         entriesLoaded.current = true;
         setLoading(false);
         return;
       }
       
-      // Decrypt entry content for display in JournalCard
-      const decryptedEntries = await Promise.all(
-        loaded.map(async (entry) => {
-          try {
-            if (!entry.encryptedUserText || !entry.encryptedBubbaReply) {
-              throw new Error('Entry missing encrypted fields');
-            }
-            
-            const userText = await decryptData(entry.encryptedUserText);
-            const bubbaReply = await decryptData(entry.encryptedBubbaReply);
-            
-            return {
-              ...entry,
-              userText,
-              bubbaReply
-            } as DecryptedJournalEntry;
-          } catch (error) {
-            console.error(`Failed to decrypt entry ${entry.timestamp}:`, error);
-            return {
-              ...entry,
-              userText: '[Failed to decrypt]',
-              bubbaReply: '[Failed to decrypt]'
-            } as DecryptedJournalEntry;
-          }
-        })
-      );
+      // Note: JournalCard component will handle the decryption internally
+      // We don't need to decrypt entries here anymore
       
-      // Sort entries by timestamp in descending order (newest first)
-      decryptedEntries.sort((a, b) => {
+      // Sort entries by timestamp descending (newest first)
+      const sortedEntries = [...loaded].sort((a, b) => {
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
       
-      setEntries(decryptedEntries);
+      debug('JournalPage', 'Entries sorted, setting state', { entryCount: sortedEntries.length });
+      setEntries(sortedEntries);
       entriesLoaded.current = true;
     } catch (error) {
-      console.error("Failed to load journal entries:", error);
-      setError('Failed to load journal entries: ' + (error instanceof Error ? error.message : String(error)));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      debug('JournalPage', 'Failed to load journal entries:', { error: errorMessage });
+      setError('Failed to load journal entries: ' + errorMessage);
       toast({
         title: "Loading Error",
         description: "Failed to load your journal entries. Please try again.",
@@ -169,19 +127,24 @@ const UpdatedJournalPage = () => {
         return;
       }
       
+      debug('JournalPage', `Soft deleting entry with timestamp: ${timestamp}`, undefined);
+      
       // First update UI optimistically
       setEntries((prev) => prev.filter((entry) => entry.timestamp !== timestamp));
       
       // Then perform the actual delete operation
       await softDeleteJournalEntry(timestamp, user.uid);
       
+      debug('JournalPage', 'Entry successfully moved to trash', undefined);
+      
       toast({ 
         title: "Entry Moved to Trash", 
         description: "Journal entry has been moved to the trash." 
       });
     } catch (error) {
-      console.error('Failed to delete entry:', error);
-      setError('Failed to delete entry: ' + (error instanceof Error ? error.message : String(error)));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      debug('JournalPage', 'Failed to delete entry:', { error: errorMessage });
+      setError('Failed to delete entry: ' + errorMessage);
       
       // Reload entries on error to reset state
       entriesLoaded.current = false;
@@ -202,8 +165,14 @@ const UpdatedJournalPage = () => {
         return;
       }
       
+      debug('JournalPage', `Editing entry with timestamp: ${timestamp}`, {
+        textLength: newText.length
+      });
+      
       // Perform the edit operation
       await editJournalEntry(timestamp, newText, user.uid);
+      
+      debug('JournalPage', 'Entry successfully updated', undefined);
       
       // Reload entries to show the updated content
       entriesLoaded.current = false;
@@ -214,8 +183,9 @@ const UpdatedJournalPage = () => {
         description: "Your journal entry has been updated successfully." 
       });
     } catch (error) {
-      console.error('Failed to edit entry:', error);
-      setError('Failed to edit entry: ' + (error instanceof Error ? error.message : String(error)));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      debug('JournalPage', 'Failed to edit entry:', { error: errorMessage });
+      setError('Failed to edit entry: ' + errorMessage);
       
       toast({ 
         title: "Error", 
@@ -225,15 +195,29 @@ const UpdatedJournalPage = () => {
     }
   };
 
-  const goToTrash = () => router.push('/Journal/trash');
+  const goToTrash = () => {
+    debug('JournalPage', 'Navigating to trash page', undefined);
+    router.push('/Journal/trash');
+  };
 
   const handleRefresh = () => {
+    debug('JournalPage', 'Manual refresh requested', undefined);
     entriesLoaded.current = false;
     loadJournalEntries();
   };
 
+  // Component render debugging
+  useEffect(() => {
+    debug('JournalPage', 'Component rendered', { 
+      entriesCount: entries.length,
+      loading,
+      error: error ? 'Error present' : 'No error'
+    });
+  });
+
   // Only show loading indicator when first loading
   if (loading && entries.length === 0) {
+    debug('JournalPage', 'Rendering loading state', undefined);
     return (
       <div className="container mx-auto px-4">
         <div className="text-center py-8">
@@ -244,8 +228,17 @@ const UpdatedJournalPage = () => {
     );
   }
 
+  debug('JournalPage', 'Rendering main component', { entriesCount: entries.length });
+  
   return (
     <div className="container mx-auto px-4">
+      {/* Debug indicator only shown in development */}
+      {DEBUG_MODE && (
+        <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-md mb-4 text-sm">
+          Debug mode is active - logs are being recorded in the console
+        </div>
+      )}
+
       {error && (
         <Card className="mb-4">
           <CardContent className="pt-6">
