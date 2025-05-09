@@ -103,8 +103,8 @@
     --transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  /* Dark mode variables */
-  .dark {
+  /* Dark mode variables - CHANGED FROM .dark TO [data-theme="dark"] */
+  [data-theme="dark"] {
     --color-primary-50: #172554;
     --color-primary-100: #1e3a8a;
     --color-primary-200: #1e40af;

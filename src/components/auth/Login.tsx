@@ -169,7 +169,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
         <DialogFooter className="flex justify-between sm:justify-between">
           {step > 0 ? (
             <Button
-              variant="outline"
+              className="outline"
               onClick={handleBack}
               type="button"
             >
