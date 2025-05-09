@@ -2,7 +2,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import '../../public/assets/css/globals.css';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { EmotionSettingsProvider } from '@/components/context/EmotionSettingsContext';
 import { Toaster } from '@/components/ui/toaster';
@@ -10,6 +9,7 @@ import { TTSProvider } from '@/components/context/TTSContext';
 import Link from 'next/link';
 import UpdatedClientNav from '@/components/ClientNav/UpdatedClientNav';
 import { colors, typography, spacing } from '@/styles/design-system';
+import { ThemeDebugger } from '@/components/Theme-Debugger';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -30,17 +30,17 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ThemeProvider
-          attribute="class"
+          attribute="data-theme"
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange
-          themes={['light', 'dark']} // Ensure these themes match your CSS variables
+          themes={['light', 'dark']}
         >
           <EmotionSettingsProvider>
             <TTSProvider>
-              <header className="bg-white py-4">
+              <header className="bg-background py-4 border-b border-border">
                 <div className="container mx-auto px-4 flex items-center justify-between">
-                  <Link href="/" className="text-2xl font-bold text-gray-800">
+                  <Link href="/" className="text-2xl font-bold text-foreground">
                     Bubbas.AI
                   </Link>
                   <nav>
@@ -48,8 +48,9 @@ export default function RootLayout({
                   </nav>
                 </div>
               </header>
-              <main>{children}</main>
+              <main className="bg-background min-h-screen text-foreground">{children}</main>
               <Toaster />
+              {process.env.NODE_ENV === 'development' && <ThemeDebugger />}
             </TTSProvider>
           </EmotionSettingsProvider>
         </ThemeProvider>

@@ -1,10 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+@import '../styles/design-variables.css';
 
 @layer base {
   :root {
@@ -43,8 +40,17 @@ body {
     --sidebar-ring: 217.2 91.2% 59.8%;
     --profile-image-width: 16px;
     --profile-image-height: 16px;
+    
+    /* Bubba Theme Colors */
+    --bubba-blue: 215 100% 50%;
+    --bubba-light-blue: 195 100% 90%;
+    --bubba-purple: 260 100% 65%;
+    --bubba-green: 130 70% 50%;
+    --bubba-yellow: 40 100% 60%;
+    --bubba-red: 0 100% 60%;
   }
-  .dark {
+  
+  [data-theme="dark"] {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -79,50 +85,103 @@ body {
     --sidebar-ring: 217.2 91.2% 59.8%;
     --profile-image-width: 16px;
     --profile-image-height: 16px;
+    
+    /* Bubba Theme Colors - Dark Mode Variations */
+    --bubba-blue: 215 100% 60%;
+    --bubba-light-blue: 195 100% 70%;
+    --bubba-purple: 260 100% 75%;
+    --bubba-green: 130 70% 45%;
+    --bubba-yellow: 40 100% 55%;
+    --bubba-red: 0 100% 65%;
   }
 }
 
-/* Optional: your own custom styles or overrides go here */
+/* Theme-aware utility classes */
+.bg-background {
+  background-color: hsl(var(--background));
+}
+
+.bg-card {
+  background-color: hsl(var(--card));
+}
+
+.text-foreground {
+  color: hsl(var(--foreground));
+}
+
+.text-card-foreground {
+  color: hsl(var(--card-foreground));
+}
+
+.text-muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.border-border {
+  border-color: hsl(var(--border));
+}
+
+/* Bubba theme specific helper classes */
+.bg-bubba-blue {
+  background-color: hsl(var(--bubba-blue));
+}
+
+.text-bubba-blue {
+  color: hsl(var(--bubba-blue));
+}
+
+.bg-bubba-light-blue {
+  background-color: hsl(var(--bubba-light-blue));
+}
+
+.text-bubba-light-blue {
+  color: hsl(var(--bubba-light-blue));
+}
+
 body {
-  @apply bg-white text-gray-800 antialiased;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  @apply bg-background text-foreground antialiased;
 }
 
 h1, h2, h3, h4, h5, h6 {
   @apply font-semibold;
 }
 
-/* Example custom class */
+/* Theme-aware component classes */
 .btn-primary {
-  @apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
+  @apply bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition;
 }
 
 .login-form {
-@apply max-w-md mx-auto p-6 bg-white rounded-lg shadow-md;
+  @apply max-w-md mx-auto p-6 bg-card text-card-foreground rounded-lg shadow-md;
 }
 
 .login-form input {
-@apply text-right border border-gray-300 rounded-lg p-2;
+  @apply text-right border border-input rounded-lg p-2 bg-background text-foreground;
 }
 
 .login-form button {
-@apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
+  @apply bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition;
 }
 
 .signup-form {
-@apply max-w-md mx-auto p-6 bg-white rounded-lg shadow-md;
-}
-.signup-form input {
-@apply text-right border border-gray-300 rounded-lg p-2;
-}
-.signup-form button {
-@apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition;
-}
-.terms-of-service {
-@apply text-sm text-blue-600 mt-4;
+  @apply max-w-md mx-auto p-6 bg-card text-card-foreground rounded-lg shadow-md;
 }
 
-.bubba-images{
-@apply object-cover rounded;
-width: var(--profile-image-width, 4rem);
-height: var(--profile-image-height, 4rem);
+.signup-form input {
+  @apply text-right border border-input rounded-lg p-2 bg-background text-foreground;
+}
+
+.signup-form button {
+  @apply bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition;
+}
+
+.terms-of-service {
+  @apply text-sm text-primary mt-4;
+}
+
+.bubba-images {
+  @apply object-cover rounded;
+  width: var(--profile-image-width, 4rem);
+  height: var(--profile-image-height, 4rem);
 }

@@ -1,83 +1,53 @@
+// src/lib/utils.ts
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { colors, spacing, typography } from "@/styles/design-system";
 
-/**
- * Combines multiple class names using clsx and tailwind-merge
- * This ensures Tailwind classes are properly merged without conflicts
- */
+// Utility function for merging Tailwind classes
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Formats a date as a readable string
- */
-export function formatDate(date: Date | string): string {
-  if (typeof date === 'string') {
-    date = new Date(date);
+// Type-safe access to design system values with autocompletion
+type ColorKey = keyof typeof colors;
+type ColorShade = keyof typeof colors.primary;
+type SpacingKey = keyof typeof spacing;
+type FontSizeKey = keyof typeof typography.fontSize;
+type FontWeightKey = keyof typeof typography.fontWeight;
+
+// Type-safe color accessor
+export function getColor(color: ColorKey): typeof colors[ColorKey];
+export function getColor(color: ColorKey, shade: ColorShade): string;
+export function getColor(color: ColorKey, shade?: ColorShade): any {
+  if (shade === undefined) {
+    return colors[color];
   }
   
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-/**
- * Format a timestamp in a readable way
- */
-export function formatTime(date: Date | string): string {
-  if (typeof date === 'string') {
-    date = new Date(date);
+  // For semantic colors like success, warning, error, info
+  if (typeof colors[color] === 'string') {
+    return colors[color];
   }
   
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return colors[color][shade as ColorShade];
 }
 
-/**
- * Format file size into human readable string
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+// Type-safe spacing accessor
+export function getSpacing(size: SpacingKey): string {
+  return spacing[size];
 }
 
-/**
- * Debounce a function to avoid excessive calls
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  
-  return function(...args: Parameters<T>) {
-    const later = () => {
-      timeout = null;
-      func(...args);
-    };
-    
-    if (timeout !== null) {
-      clearTimeout(timeout);
-    }
-    
-    timeout = setTimeout(later, wait);
-  };
+// Type-safe font size accessor
+export function getFontSize(size: FontSizeKey): string {
+  return typography.fontSize[size];
 }
 
-/**
- * Truncate text with ellipsis if it exceeds the specified length
- */
-export function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + '...';
+// Type-safe font weight accessor
+export function getFontWeight(weight: FontWeightKey): string {
+  return typography.fontWeight[weight];
+}
+
+// CSS variables accessor for runtime use
+export function getCssVar(name: string): string {
+  if (typeof window === 'undefined') return '';
+  return getComputedStyle(document.documentElement).getPropertyValue(`--${name}`);
 }
