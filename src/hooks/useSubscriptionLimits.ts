@@ -1,113 +1,144 @@
-import { useState, useEffect } from "react";
-import { useSubscription } from '@/utils/subscriptionService';
-import { useToast } from "@/hooks/use-toast";
-import { getUserDoc, getCurrentUserUid } from '@/utils/firebaseDataService';
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from '@/utils/firebaseClient';
-import { updateUserProfile } from '@/utils/userProfileService';
+// src/hooks/useSubscriptionLimits.ts
 
-// Import or define the SubscriptionTier type
-export type SubscriptionTier = 'free' | 'plus' | 'pro';
+import { useState, useCallback, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/utils/firebaseClient';
+import { onAuthStateChanged } from 'firebase/auth';
+import { getTokenUsageStats, checkTokenLimits } from '@/utils/TokenDataService';
+import { SUBSCRIPTION_TIERS, useSubscription, SubscriptionTier } from '@/utils/subscriptionService';
 
 export const useSubscriptionLimits = () => {
-  const [dailyChatsUsed, setDailyChatsUsed] = useState(0);
+  // State
   const [limitError, setLimitError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [dailyChatsUsed, setDailyChatsUsed] = useState<number>(0);
+  const [monthlyTokensUsed, setMonthlyTokensUsed] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Hooks
   const { subscription } = useSubscription();
   const { toast } = useToast();
-
-  // Load daily chat usage when component mounts
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        // Get the current user's daily usage
-        const uid = getCurrentUserUid();
-        const userDoc = await getUserDoc(uid);
-        if (userDoc?.usage?.chatsToday) {
-          setDailyChatsUsed(userDoc.usage.chatsToday);
-        }
-      } catch (error) {
-        console.error("Error loading user data:", error);
-      }
-    };
-
-    // Check authentication state
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthenticated(true);
-        loadUserData();
-      } else {
-        setIsAuthenticated(false);
-        // Reset state for unauthenticated users
-        setDailyChatsUsed(0);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Get daily limit based on subscription tier
-  const getDailyLimit = (): number => {
-    switch (subscription.tier) {
-      case 'free':
-        return 10;
-      case 'plus':
-        return 30;
-      case 'pro':
-      default:
-        return Infinity;
-    }
-  };
-
-  // Check if user can send more messages
-  const checkLimits = (): boolean => {
-    const dailyLimit = getDailyLimit();
-    
-    // Pro tier has unlimited chats
-    if (dailyLimit === Infinity) return true;
-    
-    // Check if user has reached their limit
-    if (dailyChatsUsed >= dailyLimit) {
-      const limitMessage = `You've reached your daily chat limit for your ${subscription.tier} plan. Please upgrade for more chats.`;
-      setLimitError(limitMessage);
-      toast({
-        title: "Usage Limit Reached",
-        description: limitMessage,
-        variant: "destructive"
-      });
-      return false;
-    }
-    
-    return true;
-  };
-
-  // Increment usage count after a successful chat
-  const incrementUsage = (): void => {
-    setDailyChatsUsed(prev => prev + 1);
-  };
-
-  // Calculate remaining chats for the day
-  const getRemainingChats = (): number | string => {
-    const dailyLimit = getDailyLimit();
   
-    if (dailyLimit === Infinity) {
+  // Load current usage statistics
+  const loadUsageStats = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      
+      const stats = await getTokenUsageStats();
+      
+      setDailyChatsUsed(stats.limits.dailyUsed);
+      setMonthlyTokensUsed(stats.limits.monthlyUsed);
+      
+      // Check if user has reached their limits
+      if (stats.limits.dailyRemaining <= 0) {
+        setLimitError(`You've reached your daily chat limit of ${stats.limits.dailyLimit}. This will reset at midnight.`);
+      } else if (stats.limits.monthlyRemaining <= 0) {
+        setLimitError(`You've reached your monthly token limit of ${stats.limits.monthlyLimit}. This will reset at the beginning of the month.`);
+      } else {
+        setLimitError(null);
+      }
+    } catch (error) {
+      console.error('Error loading usage stats:', error);
+      // Don't set limit error on failure to load
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+  
+  // Check if the user has reached their limits before sending a message
+  const checkLimits = useCallback(async (): Promise<boolean> => {
+    try {
+      const { canUseService, message } = await checkTokenLimits();
+      
+      if (!canUseService) {
+        setLimitError(message ?? null);
+        
+        toast({
+          title: "Usage Limit Reached",
+          description: message,
+          variant: "destructive"
+        });
+        
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking limits:', error);
+      // Default to allowing on error
+      return true;
+    }
+  }, [toast]);
+  
+  // Increment usage counter after successful message
+  const incrementUsage = useCallback(() => {
+    setDailyChatsUsed(prev => prev + 1);
+    
+    // Check if we're approaching limits
+    const currentTier = subscription.tier;
+    const dailyLimit = SUBSCRIPTION_TIERS[currentTier].limits.dailyLimit;
+    
+    if (dailyChatsUsed >= dailyLimit - 3 && dailyChatsUsed < dailyLimit) {
+      // Approaching daily limit
+      toast({
+        title: "Approaching Daily Limit",
+        description: `You have ${dailyLimit - dailyChatsUsed} chats remaining today.`,
+        variant: "default"
+      });
+    }
+  }, [dailyChatsUsed, subscription.tier, toast]);
+  
+  // Get remaining chats for display
+  const getRemainingChats = useCallback((): number | string => {
+    const currentTier = subscription.tier;
+    const dailyLimit = SUBSCRIPTION_TIERS[currentTier].limits.dailyLimit;
+    
+    if (currentTier === 'pro') {
       return "Unlimited";
     }
     
     return Math.max(0, dailyLimit - dailyChatsUsed);
-  };
-
+  }, [dailyChatsUsed, subscription.tier]);
+  
+  // Check authentication status
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      
+      if (user) {
+        loadUsageStats();
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [loadUsageStats]);
+  
+  // Refresh usage stats periodically
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadUsageStats();
+      
+      // Refresh every 5 minutes
+      const intervalId = setInterval(loadUsageStats, 5 * 60 * 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [isAuthenticated, loadUsageStats]);
+  
   return {
-    dailyChatsUsed,
-    setDailyChatsUsed,
+    // State
     limitError,
     setLimitError,
     isAuthenticated,
+    dailyChatsUsed,
+    monthlyTokensUsed,
+    isLoading,
+    subscriptionTier: subscription.tier,
+    
+    // Methods
     checkLimits,
     incrementUsage,
     getRemainingChats,
-    subscriptionTier: subscription.tier as SubscriptionTier
+    loadUsageStats
   };
 };
-
-export default useSubscriptionLimits;

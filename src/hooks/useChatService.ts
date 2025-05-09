@@ -1,8 +1,31 @@
-import { useState, useCallback } from "react";
-import { detectEmotion } from '@/components/emotion/EmotionDetector';
+// src/hooks/useChatService.ts
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { Emotion } from '@/components/emotion/emotionAssets';
-import { useToast } from "@/hooks/use-toast";
-import { resetConversation, askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
+import { 
+  startEmotionalSupportSession, 
+  askQuestion, 
+  resetConversation, 
+  generateResponse,
+  saveChat
+} from '@/utils/chatServices';
+import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  emotion?: Emotion;
+  timestamp: string;
+}
+
+interface ChatServiceOptions {
+  mode?: 'emotional' | 'basic' | 'journal';
+  initialMessage?: string;
+  onError?: (error: Error) => void;
+}
 
 interface OpenAIUsage {
   promptTokens: number;
@@ -10,113 +33,222 @@ interface OpenAIUsage {
   totalTokens: number;
 }
 
-interface ChatResult {
-  reply: string;
-  emotion: Emotion;
-  usage: OpenAIUsage;
-}
-
-export const useChatService = () => {
+export const useChatService = (options: ChatServiceOptions = {}) => {
+  const { mode = 'emotional', initialMessage, onError } = options;
+  
+  // State
   const [emotion, setEmotion] = useState<Emotion | null>(null);
-  const [response, setResponse] = useState("");
+  const [response, setResponse] = useState<string>('');
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [usage, setUsage] = useState<OpenAIUsage | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // References
+  const initAttempts = useRef<number>(0);
+  
+  // Hooks
   const { toast } = useToast();
-
-  // Initialize the chat service with a specific mode
-  const initializeChat = useCallback(async (mode: 'emotional' | 'helpful' = 'helpful') => {
+  const { characterSet } = useEmotionSettings();
+  
+  // Initialize chat
+  const initializeChat = useCallback(async (chatMode: 'emotional' | 'basic' | 'journal' = 'emotional') => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      if (mode === 'emotional') {
-        const initialSessionResponse = await startEmotionalSupportSession();
-        if (initialSessionResponse && initialSessionResponse.reply) {
-          setResponse(initialSessionResponse.reply);
-          if (initialSessionResponse.emotion) {
-            setEmotion(initialSessionResponse.emotion);
+      console.log(`Initializing ${chatMode} chat...`);
+      
+      if (chatMode === 'emotional') {
+        const { reply, usage: initialUsage, emotion: initialEmotion } = await startEmotionalSupportSession();
+        
+        setResponse(reply);
+        setUsage(initialUsage);
+        setEmotion(initialEmotion);
+        
+        // Set initial chat history
+        setChatHistory([
+          { 
+            role: 'assistant', 
+            content: reply, 
+            emotion: initialEmotion,
+            timestamp: new Date().toISOString() 
           }
-          if (initialSessionResponse.usage) {
-            setUsage(initialSessionResponse.usage);
-          }
-        }
+        ]);
       } else {
-        // Standard helpful assistant mode
-        resetConversation("You are Bubba, a helpful AI assistant.");
-        setResponse("Hi there! I'm Bubba, your AI assistant. How can I help you today?");
+        // For basic mode, just set a welcome message
+        const welcomeMessage = initialMessage || "Hello! How can I help you today?";
+        setResponse(welcomeMessage);
+        
+        // Set initial chat history
+        setChatHistory([
+          { 
+            role: 'assistant', 
+            content: welcomeMessage,
+            timestamp: new Date().toISOString() 
+          }
+        ]);
       }
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize chat service:", error);
-      toast({
-        title: "Initialization Error",
-        description: "There was a problem starting the chat. Please try again.",
-        variant: "destructive"
-      });
-      return false;
+      
+      setIsInitialized(true);
+      console.log(`${chatMode} chat initialized successfully`);
+    } catch (err) {
+      console.error(`Failed to initialize ${chatMode} chat:`, err);
+      setError(`Failed to initialize chat. ${err instanceof Error ? err.message : 'Please try again.'}`);
+      
+      // Try to recover by incrementing attempts
+      initAttempts.current += 1;
+      
+      // If we've tried 3 times, stop trying
+      if (initAttempts.current >= 3) {
+        toast({
+          title: "Initialization Error",
+          description: "Failed to start chat after multiple attempts. Please refresh the page.",
+          variant: "destructive"
+        });
+      }
+      
+      // Call onError if provided
+      if (onError && err instanceof Error) {
+        onError(err);
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [toast]);
-
-  const sendMessage = useCallback(async (userInput: string): Promise<ChatResult | null> => {
-    if (!userInput.trim()) return null;
+  }, [initialMessage, toast, onError]);
+  
+  // Send message
+  const sendMessage = useCallback(async (userInput: string) => {
+    if (!userInput.trim() || isLoading) return null;
     
     setIsLoading(true);
-
+    setError(null);
+    
     try {
-      // Detect emotion from user input
-      const detectedEmotion = await detectEmotion(userInput);
+      console.log(`Sending message in ${mode} mode:`, userInput);
+      
+      // Add user message to chat history first for immediate UI update
+      const userTimestamp = new Date().toISOString();
+      const userEmotion = await detectEmotion(userInput);
+      
+      // Update chat history with user message
+      setChatHistory(prev => [
+        ...prev, 
+        { 
+          role: 'user', 
+          content: userInput, 
+          emotion: userEmotion,
+          timestamp: userTimestamp 
+        }
+      ]);
+      
+      // Clear previous response while waiting for new one
+      setResponse('');
+      setEmotion(null);
+      
+      // Get response from API
+      const { reply, usage: newUsage } = await askQuestion(userInput);
+      
+      // Set new response
+      setResponse(reply);
+      setUsage(newUsage);
+      
+      // Detect emotion from response
+      const detectedEmotion = await detectEmotion(reply);
       setEmotion(detectedEmotion);
-
-      // Get response from chat service
-      const result = await askQuestion(userInput);
       
-      // Ensure we have a valid response
-      if (!result || !result.reply) {
-        throw new Error("No response received from AI service");
+      // Update chat history with assistant message
+      setChatHistory(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: reply, 
+          emotion: detectedEmotion,
+          timestamp: new Date().toISOString() 
+        }
+      ]);
+      
+      // Save to journal if needed
+      try {
+        await saveChat(userInput, reply, detectedEmotion, newUsage);
+      } catch (saveError) {
+        console.warn('Failed to save chat:', saveError);
+        // Non-critical error, don't set error state
       }
       
-      // Set the response state with the AI's reply
-      setResponse(result.reply);
+      return { reply, usage: newUsage, emotion: detectedEmotion };
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(`Failed to send message. ${err instanceof Error ? err.message : 'Please try again.'}`);
       
-      // Set usage information if available
-      if (result.usage) {
-        setUsage(result.usage);
+      // Call onError if provided
+      if (onError && err instanceof Error) {
+        onError(err);
       }
       
-      return {
-        reply: result.reply,
-        emotion: detectedEmotion,
-        usage: result.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-      };
-    } catch (error) {
-      console.error("Error processing message:", error);
-      setResponse("Oops! Something went wrong. Bubba is trying again.");
-      toast({
-        title: "Error",
-        description: "There was a problem processing your message. Please try again.",
-        variant: "destructive"
-      });
       return null;
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [isLoading, mode, onError]);
   
-
-  const resetChat = useCallback(async (mode: 'emotional' | 'helpful' = 'helpful') => {
-    setResponse("");
-    setEmotion(null);
-    setUsage(null);
+  // Reset chat
+  const resetChat = useCallback(async (chatMode: 'emotional' | 'basic' | 'journal' = 'emotional') => {
+    setIsLoading(true);
+    setError(null);
     
-    return initializeChat(mode);
-  }, [initializeChat]);
-
+    try {
+      console.log('Resetting chat...');
+      
+      // Clear chat history and response
+      setChatHistory([]);
+      setResponse('');
+      setEmotion(null);
+      setUsage(null);
+      
+      // Re-initialize
+      await initializeChat(chatMode);
+      
+      return true;
+    } catch (err) {
+      console.error('Error resetting chat:', err);
+      setError(`Failed to reset chat. ${err instanceof Error ? err.message : 'Please try again.'}`);
+      
+      // Call onError if provided
+      if (onError && err instanceof Error) {
+        onError(err);
+      }
+      
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [initializeChat, onError]);
+  
+  // Auto-initialize on mount if not already initialized
+  useEffect(() => {
+    if (!isInitialized && initAttempts.current === 0) {
+      initializeChat(mode);
+    }
+  }, [isInitialized, initializeChat, mode]);
+  
   return {
+    // State
     emotion,
     response,
+    chatHistory,
     usage,
     isLoading,
+    isInitialized,
+    error,
+    
+    // Methods
     initializeChat,
     sendMessage,
-    resetChat
+    resetChat,
+    
+    // Additional info
+    characterSet
   };
 };
-
-export default useChatService;

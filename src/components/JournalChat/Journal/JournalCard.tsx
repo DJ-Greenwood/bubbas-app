@@ -193,6 +193,7 @@ const JournalCard: React.FC<JournalCardProps> = ({
             {entry.usage.completionTokens || 0} | Total{' '}
             {entry.usage.totalTokens || 0}
           </span>
+          
           {entry.status === 'trash' && (
             <span className="text-red-500">In Trash</span>
           )}

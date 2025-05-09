@@ -1,11 +1,14 @@
-"use client";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { fetchUserProfile } from '@/utils/userProfileService';
-import { saveJournalEntry } from '@/utils/firebaseDataService';
+// src/components/Chat/UnifiedChat.tsx
 
-// Import custom hooks
-import { useChatService } from '@/hooks/useChatService';
+'use client';
+
+import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/hooks/useAuth';
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
+
+// Custom hooks
+import { useChatService, ChatMessage } from '@/hooks/useChatService';
 import { useSubscriptionLimits } from '@/hooks/useSubscriptionLimits';
 
 // Import reusable components
@@ -15,19 +18,66 @@ import ChatResponseDisplay from '@/components/Chat/ChatResponseDisplay';
 import LimitErrorAlert from '@/components/Chat/LimitErrorAlert';
 import SubscriptionUpgradeDialog from '@/components/Chat/SubscriptionUpgradeDialog';
 
-const UpdatedChatBasic = () => {
-  // Get chat service functionality from custom hook
+// Types
+import { Emotion } from '@/components/emotion/emotionAssets';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
+
+// User Preferences
+import { fetchUserProfile } from '@/utils/userProfileService'; // Hypothetical service to fetch user profile
+
+
+interface UnifiedChatProps {
+  mode?: 'emotional' | 'basic' | 'journal';
+  headerTitle?: string;
+  description?: string;
+  initialMessage?: string;
+  showEmptyState?: boolean;
+  emptyStateMessage?: string;
+  characterSet?: EmotionCharacterKey;
+}
+
+const UnifiedChat: React.FC<UnifiedChatProps> = ({
+  mode = 'emotional',
+  headerTitle = 'Bubba the AI Assistant',
+  description = "Ask Bubba anything! Get help with everyday tasks, creative ideas, information, and more. 💬",
+  initialMessage,
+  showEmptyState = true,
+  emptyStateMessage = "Bubba is waiting for your message...",
+  characterSet: propCharacterSet,
+}) => {
+  // State
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [emotionIconSize, setEmotionIconSize] = useState<number | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+  
+  // Hooks
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { characterSet: contextCharacterSet, setCharacterSet } = useEmotionSettings();
+  
+  // Custom hooks for chat functionality and subscription limits
   const { 
     emotion, 
     response, 
+    chatHistory,
     usage, 
-    isLoading, 
+    isLoading,
+    error: chatError,
     initializeChat,
     sendMessage, 
     resetChat 
-  } = useChatService();
+  } = useChatService({
+    mode,
+    initialMessage,
+    onError: (error) => {
+      toast({
+        title: "Chat Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
   
-  // Get subscription limit functionality from custom hook
   const {
     limitError, 
     setLimitError, 
@@ -38,59 +88,42 @@ const UpdatedChatBasic = () => {
     subscriptionTier
   } = useSubscriptionLimits();
   
-  // Local state
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [emotionIconSize, setEmotionIconSize] = useState<number | null>(null);
-  const [isResetting, setIsResetting] = useState(false);
-  const { toast } = useToast();
-  
-  // Use ref to track initialization status
-  const hasInitialized = useRef(false);
-
-  // Initialize chat only once when component mounts
+  // Set character set if provided as prop
   useEffect(() => {
-    // Only initialize if it hasn't been done yet
-    if (!hasInitialized.current) {
-      const initialize = async () => {
-        try {
-          console.log("Initializing chat...");
-          await initializeChat('emotional');
-          hasInitialized.current = true;
-          console.log("Chat initialized successfully");
-        } catch (error) {
-          console.error("Failed to initialize chat:", error);
-          // Reset initialization flag so we can try again
-          hasInitialized.current = false;
-          toast({
-            title: "Initialization Error",
-            description: "Failed to start chat. Please refresh the page.",
-            variant: "destructive"
-          });
-        }
-      };
-      
-      initialize();
+    if (propCharacterSet && propCharacterSet !== contextCharacterSet) {
+      setCharacterSet(propCharacterSet);
     }
-  }, [initializeChat, toast]);
-
+  }, [propCharacterSet, contextCharacterSet, setCharacterSet]);
+  
   // Load user preferences when authenticated
   useEffect(() => {
-    const fetchUserPreferences = async () => {
+    const loadUserPreferences = async () => {
       try {
+        // Fetch user preferences here
+        // This could be from a user profile service or similar
+        
+        // For example:
         const userProfile = await fetchUserProfile();
-        if (userProfile?.preferences?.emotionIconSize) {
-          setEmotionIconSize(userProfile.preferences.emotionIconSize);
+            if (userProfile?.preferences?.emotionIconSize) {
+            setEmotionIconSize(userProfile.preferences.emotionIconSize);
+        } else {
+            // Default to a standard size if not set
+            setEmotionIconSize(64);
         }
+
+        
+        // For now, set a default
+        setEmotionIconSize(64);
       } catch (error) {
         console.error("Error fetching user profile:", error);
       }
     };
 
     if (isAuthenticated) {
-      fetchUserPreferences();
+      loadUserPreferences();
     }
   }, [isAuthenticated]);
-
+  
   // Handle user message submission
   const handleSubmit = useCallback(async (userInput: string) => {
     console.log("Submitting message:", userInput);
@@ -102,7 +135,7 @@ const UpdatedChatBasic = () => {
     }
     
     // Check if user has reached their usage limits
-    if (!checkLimits()) {
+    if (!await checkLimits()) {
       return;
     }
     
@@ -121,32 +154,6 @@ const UpdatedChatBasic = () => {
     // Increment usage counter
     incrementUsage();
     
-    // Save the conversation if user is authenticated
-    if (isAuthenticated) {
-      try {
-        console.log("Saving journal entry...");
-        await saveJournalEntry(
-          userInput,
-          result.reply,
-          result.emotion,
-          { 
-            promptTokens: result.usage.promptTokens || 0, 
-            completionTokens: result.usage.completionTokens || 0, 
-            totalTokens: result.usage.totalTokens || 0 
-          }
-        );
-        
-        console.log("Chat saved to journal successfully");
-      } catch (saveError) {
-        console.error("Error saving conversation:", saveError);
-        toast({
-          title: "Save Error",
-          description: "Your chat couldn't be saved. Please try again.",
-          variant: "destructive"
-        });
-      }
-    }
-    
     // Check if response contains limit message
     if (result.reply.includes("limit") && result.reply.includes("upgrade")) {
       setLimitError(result.reply);
@@ -157,8 +164,12 @@ const UpdatedChatBasic = () => {
       });
     }
   }, [
-    limitError, checkLimits, sendMessage, incrementUsage, 
-    isAuthenticated, setLimitError, toast, setShowUpgradeDialog
+    limitError, 
+    checkLimits, 
+    sendMessage, 
+    incrementUsage, 
+    setLimitError, 
+    toast
   ]);
 
   // Handle reset conversation - prevent loops by using a loading state
@@ -170,7 +181,7 @@ const UpdatedChatBasic = () => {
       setIsResetting(true);
       console.log("Resetting conversation...");
       
-      await resetChat('emotional');
+      await resetChat(mode);
       
       toast({
         title: "Conversation Reset",
@@ -186,7 +197,7 @@ const UpdatedChatBasic = () => {
     } finally {
       setIsResetting(false);
     }
-  }, [isResetting, resetChat, toast]);
+  }, [isResetting, resetChat, mode, toast]);
 
   return (
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
@@ -194,23 +205,34 @@ const UpdatedChatBasic = () => {
       <ChatHeader 
         subscriptionTier={subscriptionTier} 
         remainingChats={getRemainingChats()}
-        description="Ask Bubba anything! Get help with everyday tasks, creative ideas, information, and more. 💬" 
+        headerTitle={headerTitle}
+        characterSet={propCharacterSet || contextCharacterSet}
+        description={description} 
       />
 
       {/* Limit Error Alert */}
       <LimitErrorAlert 
-        errorMessage={limitError} 
+        errorMessage={limitError || chatError} 
         onUpgradeClick={() => setShowUpgradeDialog(true)}
       />
 
-      {/* Chat Response Display */}
-      <div className="mb-4 min-h-32">
-        <ChatResponseDisplay 
-          response={response}
-          emotion={emotion}
-          emotionIconSize={emotionIconSize}
-          usage={usage}
-        />
+      {/* Chat History Display */}
+      <div className="chat-history mt-4 space-y-4 max-h-96 overflow-y-auto p-2 mb-4">
+        {chatHistory.map((message, index) => (
+          <div 
+            key={index} 
+            className={`p-3 rounded-lg ${
+              message.role === 'user' 
+                ? 'bg-blue-100 ml-8' 
+                : 'bg-white mr-8'
+            }`}
+          >
+            <div className="font-medium mb-1">
+              {message.role === 'user' ? 'You:' : 'Bubba:'}
+            </div>
+            <div>{message.content}</div>
+          </div>
+        ))}
       </div>
 
       {/* Chat Input Form */}
@@ -231,4 +253,4 @@ const UpdatedChatBasic = () => {
   );
 };
 
-export default UpdatedChatBasic;
+export default UnifiedChat;

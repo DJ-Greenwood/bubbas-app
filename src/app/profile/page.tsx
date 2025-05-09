@@ -2,8 +2,11 @@
 // This is a Next.js page component for the User Profile feature.
 // This page allows users to view and edit their profile information.
 
-import UserProfile from '@/components/auth/UserProfile';
+
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
+// src/app/profile/page.tsx
+import NewProfilePage from '@/components/profile/ProfilePage';
+
 
 const ProfilePage = () => {
   // Placeholder user data - replace with actual data fetching
@@ -59,8 +62,9 @@ const ProfilePage = () => {
 
   return (
     <RequireAuth>
+
       <div>
-          <UserProfile user={userData} />
+        <NewProfilePage />
       </div>
     </RequireAuth>
   );

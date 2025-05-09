@@ -10,6 +10,7 @@ type ThemeProviderProps = {
   enableSystem?: boolean;
   disableTransitionOnChange?: boolean;
   attribute?: string;
+  themes?: string[];
 };
 
 type ThemeProviderState = {
@@ -31,6 +32,7 @@ export function ThemeProvider({
   defaultTheme = "system",
   enableSystem = true,
   disableTransitionOnChange = false,
+  themes = ["light", "dark"],
   attribute = "data-theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(defaultTheme);

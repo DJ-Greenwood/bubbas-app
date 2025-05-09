@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TTSProvider } from '@/components/context/TTSContext';
 import Link from 'next/link';
 import UpdatedClientNav from '@/components/ClientNav/UpdatedClientNav';
+import { colors, typography, spacing } from '@/styles/design-system';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -33,6 +34,7 @@ export default function RootLayout({
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange
+          themes={['light', 'dark']} // Ensure these themes match your CSS variables
         >
           <EmotionSettingsProvider>
             <TTSProvider>
