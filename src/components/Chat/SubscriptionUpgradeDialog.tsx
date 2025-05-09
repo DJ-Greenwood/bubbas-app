@@ -1,7 +1,8 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
-import { SubscriptionTier } from '@/hooks/useSubscriptionLimits';
+import { SubscriptionTier } from '@/utils/subscriptionService.updated';
+
 
 type SubscriptionUpgradeDialogProps = {
   isOpen: boolean;

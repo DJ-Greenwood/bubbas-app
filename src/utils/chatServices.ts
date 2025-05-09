@@ -17,7 +17,7 @@ import { JournalEntry } from '@/types/JournalEntry';
 
 
 import { httpsCallable } from "firebase/functions";
-import { functions, db, auth as firebaseAuth } from './firebaseClient'; // Renamed imported auth to firebaseAuth
+import { functions, db, auth as firebaseAuth } from '@/utils/firebaseClient'; // Renamed imported auth to firebaseAuth
 import { getDoc, doc } from 'firebase/firestore'; // Import Firestore methods
 import { Emotion } from '@/components/emotion/emotionAssets';
 import { UserProfileData } from '@/types/UserProfileData'; // Import UserProfileData type

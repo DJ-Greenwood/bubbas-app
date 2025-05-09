@@ -33,6 +33,7 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "**/*.updatated.ts",
     ".next/types/**/*.ts",
     "functions/index.js"
   ],
