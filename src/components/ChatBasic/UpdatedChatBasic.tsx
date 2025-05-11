@@ -1,198 +1,321 @@
-"use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+'use client';
+
+import React, { useState, useEffect, useRef } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { auth } from '@/utils/firebaseClient';
+import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { Emotion } from '@/components/emotion/emotionAssets'; 
+import { setUserUID, getPassPhrase, decryptData } from '@/utils/encryption';
+import { JournalEntry } from '@/types/JournalEntry';
 import { useToast } from "@/hooks/use-toast";
-import { fetchUserProfile } from '@/utils/userProfileService';
-import { saveJournalEntry } from '@/utils/firebaseDataService';
+import { useSubscription } from "@/utils/subscriptionService";
+import { saveJournalEntry, getJournalEntries, getUserEmotionCharacterSet } from '@/utils/firebaseDataService';
+import { askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
+import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
+import { EmotionCharacterKey } from '@/types/emotionCharacters';
 
-// Import custom hooks
-import useChatService from '@/hooks/useChatService';
-import useSubscriptionLimits from '@/hooks/useSubscriptionLimits';
 
-// Import reusable components
+
+// 💡 Added imports for HTML components used in JSX
 import ChatHeader from '@/components/Chat/ChatHeader';
-import ChatInputForm from '@/components/Chat/ChatInputForm';
-import ChatResponseDisplay from '@/components/Chat/ChatResponseDisplay';
 import LimitErrorAlert from '@/components/Chat/LimitErrorAlert';
+import ChatResponseDisplay from '@/components/Chat/ChatResponseDisplay';
+import ChatInputForm from '@/components/Chat/ChatInputForm';
 import SubscriptionUpgradeDialog from '@/components/Chat/SubscriptionUpgradeDialog';
 
 const UpdatedChatBasic = () => {
-  // Get chat service functionality from custom hook
-  const { 
-    emotion, 
-    response, 
-    usage, 
-    isLoading, 
-    initializeChat,
-    sendMessage, 
-    resetChat 
-  } = useChatService();
-  
-  // Get subscription limit functionality from custom hook
-  const {
-    limitError, 
-    setLimitError, 
-    checkLimits,
-    incrementUsage, 
-    getRemainingChats,
-    isAuthenticated,
-    subscriptionTier
-  } = useSubscriptionLimits();
-  
-  // Local state
+  const [userInput, setUserInput] = useState("");
+  const [emotion, setEmotion] = useState<Emotion | null>(null);
+  const [response, setResponse] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [journalEntries, setJournalEntries] = useState<(JournalEntry & { userText?: string; bubbaReply?: string })[]>([]);
+  const [passPhrase, setPassPhrase] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [limitError, setLimitError] = useState<string | null>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [emotionIconSize, setEmotionIconSize] = useState<number | null>(null);
-  const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
-  
-  // Use ref to track initialization status
+  const { subscription } = useSubscription();
+  const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
+  const { setCharacterSet } = useEmotionSettings();
   const hasInitialized = useRef(false);
+  
+  const [userCharacterSet, setUserCharacterSet] = useState<EmotionCharacterKey>('Bubba' as EmotionCharacterKey);
 
-  // Initialize chat only once when component mounts
+  // Initialize Bubbas in emotional support mode
   useEffect(() => {
-    // Only initialize if it hasn't been done yet
     if (!hasInitialized.current) {
-      const initialize = async () => {
+      const initializeChat = async () => {
         try {
-          console.log("Initializing chat...");
-          await initializeChat('emotional');
+          console.log("Initializing emotional chat session...");
+          await startEmotionalSupportSession();
+          const initialMessage = "Hi there! I'm Bubba, your AI emotional support companion. How are you feeling today?";
+          setResponse(initialMessage);
+          
+          // Initialize chat history with system message
+          setChatHistory([{ role: "assistant", content: initialMessage }]);
           hasInitialized.current = true;
-          console.log("Chat initialized successfully");
         } catch (error) {
-          console.error("Failed to initialize chat:", error);
-          // Reset initialization flag so we can try again
+          console.error("Failed to initialize chat service:", error);
           hasInitialized.current = false;
           toast({
             title: "Initialization Error",
-            description: "Failed to start chat. Please refresh the page.",
+            description: "There was a problem starting the chat. Please try again.",
             variant: "destructive"
           });
         }
       };
       
-      initialize();
+      initializeChat();
     }
-  }, [initializeChat, toast]);
+  }, [toast]);
 
-  // Load user preferences when authenticated
+  // Listen for auth state and set user
   useEffect(() => {
-    const fetchUserPreferences = async () => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        console.log("User authenticated:", firebaseUser.uid);
+        setUser(firebaseUser);
+        setUserUID(firebaseUser.uid); // Set user UID for encryption
+        
+      } else {
+        console.log("No user authenticated");
+        setUser(null);
+        setUserUID(""); // Clear user UID
+
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch passphrase and user character set
+  useEffect(() => {
+    const init = async () => {
+      if (!user) return;
+      
       try {
-        const userProfile = await fetchUserProfile();
-        if (userProfile?.preferences?.emotionIconSize) {
-          setEmotionIconSize(userProfile.preferences.emotionIconSize);
+        // Get passphrase first - this is critical for encryption
+        const phrase = await getPassPhrase();
+        if (phrase) {
+          setPassPhrase(phrase);
+          console.log("✅ Passphrase successfully loaded");
+        } else {
+          console.error("No passphrase returned from getPassPhrase()");
+          toast({
+            title: "Encryption Error",
+            description: "Failed to retrieve your encryption key. Journal entries cannot be saved.",
+            variant: "destructive"
+          });
+        }
+        
+        // Get user's preferred character set
+        const userPrefCharacterSet = await getUserEmotionCharacterSet();
+        if (userPrefCharacterSet) {
+          setUserCharacterSet(userPrefCharacterSet);
+          setCharacterSet(userPrefCharacterSet);
+          console.log(`✅ User character set loaded: ${userPrefCharacterSet}`);
         }
       } catch (error) {
-        console.error("Error fetching user profile:", error);
+        console.error("Failed to fetch user data:", error);
+        toast({
+          title: "Data Loading Error",
+          description: "Failed to retrieve your settings. Some features may be limited.",
+          variant: "destructive"
+        });
       }
     };
-
-    if (isAuthenticated) {
-      fetchUserPreferences();
-    }
-  }, [isAuthenticated]);
-
-  // Handle user message submission
-  const handleSubmit = useCallback(async (userInput: string) => {
-    console.log("Submitting message:", userInput);
     
-    // Check for limit errors first
+    init();
+  }, [user, toast, setCharacterSet]);
+
+  // Load journal entries when both user and passphrase are available
+  useEffect(() => {
+    if (user && passPhrase) {
+      loadJournalEntries();
+    }
+  }, [user, passPhrase]);
+
+  const loadJournalEntries = async () => {
+    if (!user || !passPhrase) {
+      console.log("Cannot load journal entries - missing user or passphrase");
+      return;
+    }
+    
+    try {
+      console.log("Loading journal entries...");
+      const loaded = await getJournalEntries("active");
+      console.log(`✅ Loaded ${loaded.length} journal entries`);
+      
+      // Decrypt entry content for display in JournalCard
+      const decryptedEntries = await Promise.all(
+        loaded.map(async (entry) => {
+          try {
+            if (!entry.encryptedUserText || !entry.encryptedBubbaReply) {
+              throw new Error("Entry missing encrypted fields");
+            }
+            
+            const userText = await decryptData(entry.encryptedUserText);
+            const bubbaReply = await decryptData(entry.encryptedBubbaReply);
+            
+            return {
+              ...entry,
+              userText,
+              bubbaReply
+            };
+          } catch (error) {
+            console.error(`Failed to decrypt entry ${entry.timestamp}:`, error);
+            return {
+              ...entry,
+              userText: '[Failed to decrypt]',
+              bubbaReply: '[Failed to decrypt]'
+            };
+          }
+        })
+      );
+      
+      setJournalEntries(decryptedEntries);
+    } catch (error) {
+      console.error("Failed to load journal entries:", error);
+      toast({
+        title: "Loading Error",
+        description: "Failed to load your previous conversations.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmedInput = userInput.trim();
+    if (!trimmedInput) return;
+    
+    // Check if user has reached limit
     if (limitError) {
       setShowUpgradeDialog(true);
       return;
     }
+
+    setIsLoading(true);
     
-    // Check if user has reached their usage limits
-    if (!checkLimits()) {
-      return;
-    }
+    // Update chat history with user input
+    const updatedHistory = [
+      ...chatHistory,
+      { role: "user", content: trimmedInput }
+    ];
+    setChatHistory(updatedHistory);
     
-    // Send message to chat service
-    const result = await sendMessage(userInput);
-    if (!result) {
-      console.error("Failed to get response from chat service");
-      toast({
-        title: "Message Error",
-        description: "Failed to send your message. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Increment usage counter
-    incrementUsage();
-    
-    // Save the conversation if user is authenticated
-    if (isAuthenticated) {
-      try {
-        console.log("Saving journal entry...");
-        await saveJournalEntry(
-          userInput,
-          result.reply,
-          result.emotion,
-          { 
-            promptTokens: result.usage.promptTokens || 0, 
-            completionTokens: result.usage.completionTokens || 0, 
-            totalTokens: result.usage.totalTokens || 0 
-          }
-        );
-        
-        console.log("Chat saved to journal successfully");
-      } catch (saveError) {
-        console.error("Error saving conversation:", saveError);
+    setLimitError(null);
+
+    try {
+      // Detect emotion from user input
+      console.log("Detecting emotion from input...");
+      const detectedEmotion = await detectEmotion(trimmedInput);
+      setEmotion(detectedEmotion);
+
+      // Get response from chat service
+      console.log("Asking question to chat service...");
+      const { reply, usage } = await askQuestion(trimmedInput);
+      setResponse(reply);
+      
+      // Update chat history with AI response
+      setChatHistory([
+        ...updatedHistory,
+        { role: "assistant", content: reply }
+      ]);
+      
+      // Check if this was a limit error message
+      if (reply.includes("limit") && reply.includes("upgrade")) {
+        setLimitError(reply);
         toast({
-          title: "Save Error",
-          description: "Your chat couldn't be saved. Please try again.",
+          title: "Usage Limit Reached",
+          description: "You've reached your usage limit. Please upgrade your plan for more access.",
           variant: "destructive"
         });
+      } else if (user) {
+        // Check if we have a passphrase before trying to save
+        if (!passPhrase) {
+          console.error("Cannot save journal entry: No passphrase available");
+          toast({
+            title: "Encryption Error",
+            description: "Unable to save this conversation due to missing encryption key.",
+            variant: "destructive"
+          });
+        } else {
+          // Save to journal if we have passphrase and not hitting limits
+          try {
+            console.log("Saving journal entry with character set:", userCharacterSet);
+            
+            await saveJournalEntry(
+              trimmedInput,
+              reply,
+              detectedEmotion,
+              { 
+                promptTokens: usage.promptTokens || 0, 
+                completionTokens: usage.completionTokens || 0, 
+                totalTokens: usage.totalTokens || 0 
+              }
+            );
+            console.log("✅ Journal entry saved successfully");
+            
+            // Reload journal entries to show the new entry
+            await loadJournalEntries();
+          } catch (saveError) {
+            console.error("Error saving journal entry:", saveError);
+            toast({
+              title: "Save Error",
+              description: "Failed to save this conversation. Please try again.",
+              variant: "destructive"
+            });
+          }
+        }
       }
-    }
-    
-    // Check if response contains limit message
-    if (result.reply.includes("limit") && result.reply.includes("upgrade")) {
-      setLimitError(result.reply);
-      toast({
-        title: "Usage Limit Reached",
-        description: "You've reached your usage limit. Please upgrade your plan for more access.",
-        variant: "destructive"
-      });
-    }
-  }, [
-    limitError, checkLimits, sendMessage, incrementUsage, 
-    isAuthenticated, setLimitError, toast, setShowUpgradeDialog
-  ]);
-
-  // Handle reset conversation - prevent loops by using a loading state
-  const handleResetConversation = useCallback(async () => {
-    // Prevent multiple resets
-    if (isResetting) return;
-    
-    try {
-      setIsResetting(true);
-      console.log("Resetting conversation...");
-      
-      await resetChat('emotional');
-      
-      toast({
-        title: "Conversation Reset",
-        description: "Your chat with Bubba has been reset.",
-      });
     } catch (error) {
-      console.error("Error resetting conversation:", error);
+      console.error("Failed to submit:", error);
+      setResponse("Oops! Something went wrong. Bubba is trying again.");
+      
+      // Update chat history with error message
+      setChatHistory([
+        ...updatedHistory,
+        { role: "assistant", content: "Oops! Something went wrong. Bubba is trying again." }
+      ]);
+      
       toast({
-        title: "Reset Error",
-        description: "Failed to reset the conversation. Please try again.",
+        title: "Error",
+        description: "There was a problem processing your message. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setIsResetting(false);
+      setIsLoading(false);
+      setUserInput("");
     }
-  }, [isResetting, resetChat, toast]);
+  };
+
+  // Check if the user has reached their daily chat limit
+  const isDailyLimitReached = () => {
+    if (subscription.tier === 'free' && journalEntries.length >= 10) {
+      return true;
+    }
+    if (subscription.tier === 'plus' && journalEntries.length >= 30) {
+      return true;
+    }
+    return false;
+  };
+
+  // Get remaining chats for the day
+  const getRemainingChats = () => {
+    if (subscription.tier === 'free') {
+      return Math.max(0, 10 - journalEntries.length % 10);
+    }
+    if (subscription.tier === 'plus') {
+      return Math.max(0, 30 - journalEntries.length % 30);
+    }
+    return "Unlimited"; // Pro tier
+  };
 
   return (
     <div className="emotion-chat-container bg-clip-padding backdrop-filter backdrop-blur-sm bg-opacity-10 border border-gray-300 rounded-lg p-4 shadow-md">
       {/* Chat Header */}
       <ChatHeader 
-        subscriptionTier={subscriptionTier} 
+        subscriptionTier={subscription.tier} 
         remainingChats={getRemainingChats()}
         description="Ask Bubba anything! Get help with everyday tasks, creative ideas, information, and more. 💬" 
       />

@@ -1,0 +1,158 @@
+/* src/styles/homepage.css */
+
+/* Gradient backgrounds */
+.bg-gradient-bubba {
+  background: linear-gradient(135deg, hsl(var(--bubba-blue)) 0%, hsl(var(--bubba-purple)) 100%);
+}
+
+/* Feature card hover effects */
+.feature-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  will-change: transform, box-shadow;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* Value cards icons animation */
+.value-icon {
+  transition: transform 0.3s ease;
+}
+
+.value-card:hover .value-icon {
+  transform: scale(1.1);
+}
+
+/* Pricing tier highlight effects */
+.pricing-popular::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 150px;
+  height: 150px;
+  background: linear-gradient(135deg, hsl(var(--primary)/15) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Button animations */
+.hero-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: 0.5s;
+}
+
+.hero-button:hover::after {
+  left: 100%;
+}
+
+/* Accessibility focus styles */
+.focus-visible:focus {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .feature-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .feature-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+}
+
+/* Hero section background pattern */
+[data-theme="dark"] .hero-pattern {
+  opacity: 0.05;
+}
+
+/* Additional utility animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Hero text animation */
+@keyframes reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-reveal {
+  animation: reveal 1.2s cubic-bezier(0.77, 0, 0.18, 1);
+}
+
+/* Section transition animation */
+.section-transition {
+  position: relative;
+  overflow: hidden;
+}
+
+.section-transition::after {
+  content: '';
+  position: absolute;
+  bottom: -50px;
+  left: 0;
+  width: 100%;
+  height: 100px;
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.03));
+  pointer-events: none;
+}
+
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .pricing-card {
+    height: auto;
+  }
+  
+  .hero-pattern {
+    opacity: 0.05;
+  }
+  
+  .value-card {
+    margin-bottom: 1rem;
+  }
+}
