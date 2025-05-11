@@ -66,17 +66,15 @@ const ImprovedChat: React.FC<ImprovedChatProps> = ({
   const { 
     emotion, 
     response, 
-    chatHistory,
     usage, 
     isLoading,
-    error: chatError,
     initializeChat,
     sendMessage, 
     resetChat 
   } = useChatService({
     mode,
     initialMessage,
-    onError: (error) => {
+    onError: (error: { message: string }) => {
       toast({
         title: "Chat Error",
         description: error.message,
@@ -171,7 +169,7 @@ const ImprovedChat: React.FC<ImprovedChatProps> = ({
     try {
       setIsResetting(true);
       
-      await resetChat(mode);
+      await resetChat(mode === "basic" || mode === "journal" ? "emotional" : mode);
       
       toast({
         title: "Conversation Reset",
