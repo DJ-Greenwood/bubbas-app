@@ -284,3 +284,101 @@ export const decryptField = async (cipherText: string): Promise<string> => {
     return "[Error]";
   }
 };
+
+
+// Recover with passphrase
+export const recoverWithPassphrase = async (passphrase: string): Promise<boolean> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    const userUID = user.uid;
+
+    // Derive the passphrase key
+    const passphraseKey = CryptoJS.PBKDF2(passphrase, userUID + appSalt, {
+      keySize: 256 / 32,
+      iterations: 10000,
+    }).toString();
+
+    // Fetch the encrypted master key from Firestore
+    const userDocRef = doc(collection(db, "users"), userUID);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      console.error("User document not found");
+      return false;
+    }
+
+    const encryptedMasterKey = userDocSnap.data()?.encryptedMasterKey;
+    if (!encryptedMasterKey) {
+      console.error("Encrypted master key not found");
+      return false;
+    }
+
+    // Decrypt the master key
+    const bytes = CryptoJS.AES.decrypt(encryptedMasterKey, passphraseKey);
+    const decryptedMasterKey = bytes.toString(CryptoJS.enc.Utf8);
+
+    if (!decryptedMasterKey) {
+      console.error("Failed to decrypt master key");
+      return false;
+    }
+
+    sessionStorage.setItem("masterKey", decryptedMasterKey);
+    console.log("Master key successfully recovered and stored");
+    return true;
+
+  } catch (error) {
+    console.error("Error during recovery with passphrase:", error);
+    return false;
+  }
+};
+
+// Recover with code
+export const recoverWithCode = async (recoveryCode: string): Promise<boolean> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    const userUID = user.uid;
+
+    // Derive the recovery key
+    const recoveryKey = CryptoJS.SHA256(recoveryCode + appSalt).toString();
+
+    // Fetch the encrypted master key from Firestore
+    const userDocRef = doc(collection(db, "users"), userUID);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (!userDocSnap.exists()) {
+      console.error("User document not found");
+      return false;
+    }
+
+    const encryptedRecoveryKey = userDocSnap.data()?.encryptedRecoveryKey;
+    if (!encryptedRecoveryKey) {
+      console.error("Encrypted recovery key not found");
+      return false;
+    }
+
+    // Decrypt the master key
+    const bytes = CryptoJS.AES.decrypt(encryptedRecoveryKey, recoveryKey);
+    const decryptedMasterKey = bytes.toString(CryptoJS.enc.Utf8);
+
+    if (!decryptedMasterKey) {
+      console.error("Failed to decrypt master key");
+      return false;
+    }
+
+    sessionStorage.setItem("masterKey", decryptedMasterKey);
+    console.log("Master key successfully recovered and stored");
+    return true;
+
+  } catch (error) {
+    console.error("Error during recovery with code:", error);
+    return false;
+  }
+};

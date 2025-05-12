@@ -47,9 +47,29 @@ service cloud.firestore {
                     isValidTTSFeatureToggle() &&
                     isValidIconPreferences();
       
-      // Updated journal structure - direct documents instead of nested collections
+      // Updated journal structure - direct documents under journal collection
       match /journal/{entryId} {
         allow read, write, update, delete: if isUserOwner(userId);
+      }
+      
+      // Support both chat and chats paths for maximum compatibility
+      match /chat/{chatId} {
+        allow read, write, update, delete: if isUserOwner(userId);
+        
+        // Allow messages subcollection if that's how you're structuring chats
+        match /messages/{messageId} {
+          allow read, write, update, delete: if isUserOwner(userId);
+        }
+      }
+      
+      // Support plural 'chats' collection if your code uses it
+      match /chats/{chatId} {
+        allow read, write, update, delete: if isUserOwner(userId);
+        
+        // Allow messages subcollection
+        match /messages/{messageId} {
+          allow read, write, update, delete: if isUserOwner(userId);
+        }
       }
       
       match /token_usage/{docId} {
@@ -63,9 +83,18 @@ service cloud.firestore {
     }
     
     // ─── JOURNALS - Legacy ────────────────────────────────────
-    // Keep this for backwards compatibility
+    // Keep this for backwards compatibility with expanded permissions
     match /journals/{userId}/entries/{entryId} {
       allow read, write, update, delete: if isUserOwner(userId);
+    }
+    
+    // Add support for direct access to journal entries if needed
+    match /journals/{userId} {
+      allow read, write, update, delete: if isUserOwner(userId);
+      
+      match /entries/{entryId} {
+        allow read, write, update, delete: if isUserOwner(userId);
+      }
     }
     
     // ─── USER ENCRYPTION KEYS ───────────────────────
