@@ -49,7 +49,7 @@ export const SUBSCRIPTION_TIERS = {
     description: 'Full experience with advanced emotional analysis',
     limits: {
       dailyLimit: 100,
-      monthlyTokenLimit: 200000,
+      monthlyTokenLimit: 'Unlimited',
       sttMinutes: 120,
       ttsMinutes: 120,
       maxJournalEntries: 'Unlimited'
@@ -75,7 +75,7 @@ export interface SubscriptionData {
   description: string;
   limits: {
     dailyLimit: number;
-    monthlyTokenLimit: number;
+    monthlyTokenLimit: number | string;
     sttMinutes: number;
     ttsMinutes: number;
     maxJournalEntries: number | string;

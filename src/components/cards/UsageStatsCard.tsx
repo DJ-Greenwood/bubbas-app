@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { getTokenUsageSummary } from '@/utils/firebaseDataService';
+import { getTokenUsageSummary } from '@/utils/TokenDataService';
 import { getUserTier } from '@/utils/subscriptionService';
 
 const UsageStatsCard = () => {
