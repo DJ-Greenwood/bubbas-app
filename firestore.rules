@@ -106,5 +106,38 @@ service cloud.firestore {
     match /admin/{docId} {
       allow read, write: if false;
     }
+    
+    // ─── TOKEN USAGE COLLECTION ───────────────────────
+    // This collection is created by Cloud Functions to track API usage
+    match /tokenUsage/{docId} {
+      // Users can read their own usage data but not write directly
+      allow read: if isAuthenticated() && 
+                  resource.data.userId == request.auth.uid;
+      
+      // Prevent client-side writes - only Cloud Functions should write here
+      allow write, update, delete: if false;
+    }
+    
+    // ─── CONVERSATIONS COLLECTION ───────────────────────
+    // This collection stores conversation history created by Cloud Functions
+    match /conversations/{docId} {
+      // Users can read their own conversations but not write directly
+      allow read: if isAuthenticated() && 
+                  resource.data.userId == request.auth.uid;
+      
+      // Prevent client-side writes - only Cloud Functions should write here
+      allow write, update, delete: if false;
+    }
+    
+    // ─── USAGE SUMMARY COLLECTION ───────────────────────
+    // Collection for aggregated usage statistics by month
+    match /usageSummary/{docId} {
+      // Only allow reading specific user data
+      allow read: if isAuthenticated() && 
+                  exists(/databases/$(database)/documents/usageSummary/$(docId)/users/$(request.auth.uid));
+      
+      // Prevent client-side writes - only Cloud Functions should write here
+      allow write, update, delete: if false;
+    }
   }
 }

@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
-import { auth } from '@/utils/firebaseClient';
+import { auth, functions } from '@/utils/firebaseClient';
+import { httpsCallable } from "firebase/functions";
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 
-import { setUserUID, getPassPhrase, decryptData } from '@/utils/encryption';
+import { setUserUID, getPassPhrase } from '@/utils/encryption';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { JournalEntry } from '@/types/JournalEntry';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,15 +17,23 @@ import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/utils/subscriptionService";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
-import { saveJournalEntry, getJournalEntries, getUserEmotionCharacterSet } from '@/utils/firebaseDataService';
-import { askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
 import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';
+
+// Import the new journalService instead of firebaseDataService
+import { 
+  getJournalEntries,
+  getUserEmotionCharacterSet,
+  saveJournalEntry
+} from '@/utils/journalService';
+
+// Connect to Firebase Functions directly using httpsCallable
+const callStartEmotionalSupportSession = httpsCallable(functions, "startEmotionalSupportSession");
+const callContinueConversation = httpsCallable(functions, "continueConversation");
 
 const UpdatedEmotionChat = () => {
   const [userInput, setUserInput] = useState("");
   const [emotion, setEmotion] = useState<Emotion | null>(null);
-  const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<(JournalEntry & { userText?: string; bubbaReply?: string })[]>([]);
   const [passPhrase, setPassPhrase] = useState<string | null>(null);
@@ -36,6 +45,7 @@ const UpdatedEmotionChat = () => {
   const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([]);
   const { setCharacterSet } = useEmotionSettings();
   const hasInitialized = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
   
   const [userCharacterSet, setUserCharacterSet] = useState<EmotionCharacterKey>('Bubba' as EmotionCharacterKey);
 
@@ -45,11 +55,32 @@ const UpdatedEmotionChat = () => {
       const initializeChat = async () => {
         try {
           console.log("Initializing emotional chat session...");
-          await startEmotionalSupportSession();
-          const initialMessage = "Hi there! I'm Bubba, your AI emotional support companion. How are you feeling today?";
-          setResponse(initialMessage);
           
-          // Initialize chat history with system message
+          // Call the new Firebase Function directly
+          const response = await callStartEmotionalSupportSession({
+            userId: user?.uid // This will be checked on the server
+          });
+          
+          // Type assertion for TypeScript
+          const data = response.data as {
+            reply: string;
+            usage: {
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            };
+            emotion: string;
+            sessionId: string;
+          };
+          
+          // Store the reply and the sessionId for future use
+          sessionIdRef.current = data.sessionId;
+          const initialMessage = data.reply;
+          
+          // Set the initial emotion based on the returned emotion
+          setEmotion(data.emotion as Emotion);
+          
+          // Update UI with the initial message
           setChatHistory([{ role: "assistant", content: initialMessage }]);
           hasInitialized.current = true;
         } catch (error) {
@@ -65,7 +96,7 @@ const UpdatedEmotionChat = () => {
       
       initializeChat();
     }
-  }, [toast]);
+  }, [toast, user]);
 
   // Listen for auth state and set user
   useEffect(() => {
@@ -79,7 +110,6 @@ const UpdatedEmotionChat = () => {
         console.log("No user authenticated");
         setUser(null);
         setUserUID(""); // Clear user UID
-
       }
     });
     return () => unsubscribe();
@@ -105,11 +135,11 @@ const UpdatedEmotionChat = () => {
           });
         }
         
-        // Get user's preferred character set
+        // Get user's preferred character set using the new service
         const userPrefCharacterSet = await getUserEmotionCharacterSet();
         if (userPrefCharacterSet) {
-          setUserCharacterSet(userPrefCharacterSet);
-          setCharacterSet(userPrefCharacterSet);
+          setUserCharacterSet(userPrefCharacterSet as EmotionCharacterKey);
+          setCharacterSet(userPrefCharacterSet as EmotionCharacterKey);
           console.log(`✅ User character set loaded: ${userPrefCharacterSet}`);
         }
       } catch (error) {
@@ -140,37 +170,13 @@ const UpdatedEmotionChat = () => {
     
     try {
       console.log("Loading journal entries...");
+      
+      // Use the new journalService - client-side decryption is already handled inside
       const loaded = await getJournalEntries("active");
       console.log(`✅ Loaded ${loaded.length} journal entries`);
       
-      // Decrypt entry content for display in JournalCard
-      const decryptedEntries = await Promise.all(
-        loaded.map(async (entry) => {
-          try {
-            if (!entry.encryptedUserText || !entry.encryptedBubbaReply) {
-              throw new Error("Entry missing encrypted fields");
-            }
-            
-            const userText = await decryptData(entry.encryptedUserText);
-            const bubbaReply = await decryptData(entry.encryptedBubbaReply);
-            
-            return {
-              ...entry,
-              userText,
-              bubbaReply
-            };
-          } catch (error) {
-            console.error(`Failed to decrypt entry ${entry.timestamp}:`, error);
-            return {
-              ...entry,
-              userText: '[Failed to decrypt]',
-              bubbaReply: '[Failed to decrypt]'
-            };
-          }
-        })
-      );
-      
-      setJournalEntries(decryptedEntries);
+      // The entries are already decrypted by the journalService
+      setJournalEntries(loaded);
     } catch (error) {
       console.error("Failed to load journal entries:", error);
       toast({
@@ -209,10 +215,29 @@ const UpdatedEmotionChat = () => {
       const detectedEmotion = await detectEmotion(trimmedInput);
       setEmotion(detectedEmotion);
 
-      // Get response from chat service
-      console.log("Asking question to chat service...");
-      const { reply, usage } = await askQuestion(trimmedInput);
-      setResponse(reply);
+      // Get response using the continueConversation function
+      if (!sessionIdRef.current) {
+        throw new Error("No active session ID");
+      }
+      
+      console.log("Continuing conversation with session ID:", sessionIdRef.current);
+      const response = await callContinueConversation({
+        sessionId: sessionIdRef.current,
+        message: trimmedInput,
+        userId: user?.uid // Will be validated on server
+      });
+      
+      // Type assertion for TypeScript
+      const data = response.data as {
+        reply: string;
+        usage: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        };
+      };
+      
+      const reply = data.reply;
       
       // Update chat history with AI response
       setChatHistory([
@@ -229,46 +254,32 @@ const UpdatedEmotionChat = () => {
           variant: "destructive"
         });
       } else if (user) {
-        // Check if we have a passphrase before trying to save
-        if (!passPhrase) {
-          console.error("Cannot save journal entry: No passphrase available");
-          toast({
-            title: "Encryption Error",
-            description: "Unable to save this conversation due to missing encryption key.",
-            variant: "destructive"
-          });
-        } else {
-          // Save to journal if we have passphrase and not hitting limits
-          try {
-            console.log("Saving journal entry with character set:", userCharacterSet);
-            
-            await saveJournalEntry(
-              trimmedInput,
-              reply,
-              detectedEmotion,
-              { 
-                promptTokens: usage.promptTokens || 0, 
-                completionTokens: usage.completionTokens || 0, 
-                totalTokens: usage.totalTokens || 0 
-              }
-            );
-            console.log("✅ Journal entry saved successfully");
-            
-            // Reload journal entries to show the new entry
+        // Save journal entry using the new journalService
+        try {
+          await saveJournalEntry(
+            trimmedInput,
+            reply,
+            detectedEmotion,
+            {
+              promptTokens: data.usage.promptTokens,
+              completionTokens: data.usage.completionTokens,
+              totalTokens: data.usage.totalTokens
+            }
+          );
+          
+          console.log("✅ Journal entry saved");
+          
+          // Refresh journal entries
+          if (passPhrase) {
             await loadJournalEntries();
-          } catch (saveError) {
-            console.error("Error saving journal entry:", saveError);
-            toast({
-              title: "Save Error",
-              description: "Failed to save this conversation. Please try again.",
-              variant: "destructive"
-            });
           }
+        } catch (saveError) {
+          console.error("Failed to save journal entry:", saveError);
+          // Continue with the conversation even if saving fails
         }
       }
     } catch (error) {
       console.error("Failed to submit:", error);
-      setResponse("Oops! Something went wrong. Bubba is trying again.");
       
       // Update chat history with error message
       setChatHistory([

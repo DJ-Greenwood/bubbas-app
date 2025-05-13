@@ -11,17 +11,17 @@ import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
 import { AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { stopSpeaking } from '@/utils/tts';
-import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService';
+import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/journalService';
 import { useToast } from '@/hooks/use-toast';
 
 // Import new container components
 import { 
   PageContainer, 
   SectionContainer, 
-  FlexRow, 
-  GridContainer,
   DashboardContainer 
 } from '@/components/ui/containers';
+import FlexRow from '@/components/ui/FlexRow';
+import { GridContainer } from '../ui/GridContainer';
 
 // UI components
 import { Button } from '@/components/ui/button';
@@ -200,7 +200,7 @@ const ImprovedJournalPage = () => {
   
   return (
     <PageContainer>
-      <SectionContainer spacing="py-8">
+      <SectionContainer>
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -245,19 +245,21 @@ const ImprovedJournalPage = () => {
 
         {/* No entries state */}
         {!loading && entries.length === 0 ? (
-          <DashboardContainer className="text-center py-8">
-            <p className="text-muted-foreground mb-4">
-              You don't have any journal entries yet. Start chatting with Bubba to create some!
-            </p>
-            <Button
-              onClick={() => router.push('/EmotionChat')}
-              className="mt-2"
-            >
-              Start New Chat
-            </Button>
+          <DashboardContainer>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">
+                You don't have any journal entries yet. Start chatting with Bubba to create some!
+              </p>
+              <Button
+                onClick={() => router.push('/EmotionChat')}
+                className="mt-2"
+              >
+                Start New Chat
+              </Button>
+            </div>
           </DashboardContainer>
         ) : (
-          <GridContainer cols="md" className="grid-cols-1">
+          <GridContainer className="grid-cols-1">
             {entries.map((entry) => (
               <JournalCard
                 key={entry.timestamp}
