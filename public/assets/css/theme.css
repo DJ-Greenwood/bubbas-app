@@ -38,6 +38,17 @@
     --bubba-green: 130 70% 50%;
     --bubba-yellow: 40 100% 60%;
     --bubba-red: 0 100% 60%;
+
+    /* Emotion Colors */
+    --emotion-happy: 40 100% 60%;
+    --emotion-sad: 215 90% 65%;
+    --emotion-angry: 0 90% 60%;
+    --emotion-anxious: 260 90% 70%;
+    --emotion-neutral: 0 0% 65%;
+    --emotion-overwhelmed: 280 90% 50%;
+    --emotion-excited: 330 90% 65%;
+    --emotion-content: 130 70% 50%;
+    --emotion-frustrated: 20 90% 55%;
   }
   
   [data-theme="dark"] {
@@ -76,6 +87,17 @@
     --bubba-green: 130 70% 45%;
     --bubba-yellow: 40 100% 55%;
     --bubba-red: 0 100% 65%;
+
+    /* Emotion Colors - Dark Mode */
+    --emotion-happy: 40 90% 55%;
+    --emotion-sad: 215 80% 70%;
+    --emotion-angry: 0 80% 65%;
+    --emotion-anxious: 260 80% 75%;
+    --emotion-neutral: 0 0% 70%;
+    --emotion-overwhelmed: 280 80% 60%;
+    --emotion-excited: 330 80% 70%;
+    --emotion-content: 130 60% 55%;
+    --emotion-frustrated: 20 80% 60%;
   }
   
   /* Theme Transition */
@@ -116,6 +138,43 @@
   .text-bubba-light-blue {
     color: hsl(var(--bubba-light-blue));
   }
+
+  /* Emotion background helper classes */
+  .bg-emotion-happy {
+    background-color: hsl(var(--emotion-happy));
+  }
+  
+  .bg-emotion-sad {
+    background-color: hsl(var(--emotion-sad));
+  }
+  
+  .bg-emotion-angry {
+    background-color: hsl(var(--emotion-angry));
+  }
+  
+  .bg-emotion-anxious {
+    background-color: hsl(var(--emotion-anxious));
+  }
+  
+  .bg-emotion-neutral {
+    background-color: hsl(var(--emotion-neutral));
+  }
+  
+  .bg-emotion-overwhelmed {
+    background-color: hsl(var(--emotion-overwhelmed));
+  }
+  
+  .bg-emotion-excited {
+    background-color: hsl(var(--emotion-excited));
+  }
+  
+  .bg-emotion-content {
+    background-color: hsl(var(--emotion-content));
+  }
+  
+  .bg-emotion-frustrated {
+    background-color: hsl(var(--emotion-frustrated));
+  }
   
   /* For nested elements that need special handling in dark mode */
   [data-theme="dark"] .dark-mode-invert {
@@ -124,4 +183,80 @@
   
   [data-theme="dark"] .dark-mode-dim {
     opacity: 0.8;
+  }
+
+  /* Chat Interface Color Classes */
+  .chat-container {
+    background-color: hsl(var(--card));
+    box-shadow: 0 4px 12px hsl(var(--muted-foreground) / 0.1);
+  }
+
+  .chat-header {
+    background-color: hsl(var(--bubba-blue));
+  }
+
+  .user-message-bubble {
+    background-color: hsl(var(--bubba-light-blue));
+  }
+
+  [data-theme="dark"] .user-message-bubble {
+    background-color: hsl(var(--secondary));
+  }
+
+  .assistant-message-bubble {
+    background-color: hsl(var(--secondary));
+  }
+
+  [data-theme="dark"] .assistant-message-bubble {
+    background-color: hsl(var(--accent));
+  }
+
+  /* Admin Panel Color Classes */
+  .admin-panel-container {
+    background-color: hsl(var(--background));
+  }
+
+  .admin-panel-header {
+    background-color: hsl(var(--bubba-blue));
+  }
+
+  .admin-card {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+  }
+
+  .admin-primary-button {
+    background-color: hsl(var(--bubba-blue));
+    color: white;
+  }
+
+  .admin-primary-button:hover {
+    background-color: hsl(var(--bubba-blue) / 0.8);
+  }
+
+  .admin-secondary-button {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+  }
+
+  .admin-secondary-button:hover {
+    background-color: hsl(var(--secondary) / 0.8);
+  }
+
+  .admin-destructive-button {
+    background-color: hsl(var(--destructive));
+    color: white;
+  }
+
+  .admin-destructive-button:hover {
+    background-color: hsl(var(--destructive) / 0.8);
+  }
+
+  .admin-success-button {
+    background-color: hsl(var(--bubba-green));
+    color: white;
+  }
+
+  .admin-success-button:hover {
+    background-color: hsl(var(--bubba-green) / 0.8);
   }

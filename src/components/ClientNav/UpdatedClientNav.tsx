@@ -65,6 +65,21 @@ export default function ClientNav() {
             >
             <Link href="/">Home</Link>
             </TabsTrigger>
+
+            <TabsTrigger
+            value ="/PromptAdminPanel"
+            className={`min-w-[80px] text-center ${isActive('/admin') ? 'bg-primary text-primary-foreground' : ''}`}
+            asChild
+            ><Link href="/PromptAdminPanel">Admin</Link>
+            </TabsTrigger>
+
+            <TabsTrigger 
+            value="/ChatConversation"
+            className={`min-w-[80px] text-center ${isActive('/ChatConversation') ? 'bg-primary text-primary-foreground' : ''}`}
+            asChild
+            >
+             <Link href="/ChatConversation">Chat Conversation</Link>
+            </TabsTrigger>
             
             <TabsTrigger
             value="/ChatBasic"
