@@ -5,10 +5,10 @@ import {
   collection, addDoc, getDocs, query, where, 
   orderBy, increment, serverTimestamp, Timestamp, limit as firestoreLimit, 
   startAfter as firestoreStartAfter
-} from 'firebase/firestore';
-import { encryptField, decryptField, getPassPhrase } from './encryption';
+} from 'firebase/firestore'; 
+import { encryptField, decryptField } from './encryption';
 import { JournalEntry } from '@/types/JournalEntry';
-import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { EmotionDetector } from '@/components/emotion/EmotionDetector';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';
 import { saveTokenUsage } from './TokenDataService'; // Assuming this is the correct import path
 
@@ -91,7 +91,7 @@ export const saveJournalEntry = async (
   try {
     const encryptedUserText = await encryptField(userText);
     const encryptedBubbaReply = await encryptField(bubbaReply);
-    const emotion = await detectEmotion(detectedEmotionText);
+    const emotion = await EmotionDetector(detectedEmotionText);
     
     // Get the current character set from user preferences
     const characterSet = await getUserEmotionCharacterSet();
@@ -142,20 +142,19 @@ export const saveJournalEntry = async (
 export const editJournalEntry = async (
   entryId: string,
   newUserText: string,
-  uid?: string
+ uid?: string
 ) => {
   try {
     const userUID = uid || getCurrentUserUid();
     // Fix: Update path to match the new structure
     const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
-    
     if (!docSnap.exists()) {
       throw new Error('Journal entry not found');
     }
     
     const encryptedUserText = await encryptField(newUserText);
-    const emotion = await detectEmotion(newUserText);
+    const emotion = await EmotionDetector(newUserText);
     
     await updateDoc(ref, {
       encryptedUserText,
@@ -226,13 +225,12 @@ export const getJournalEntries = async (
 export const softDeleteJournalEntry = async (
   entryId: string,
   uid?: string
-) => {
+) => { 
   try {
     const userUID = uid || getCurrentUserUid();
     // Fix: Update path to match the new structure
     const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
-    
     if (!docSnap.exists()) {
       throw new Error('Journal entry not found');
     }

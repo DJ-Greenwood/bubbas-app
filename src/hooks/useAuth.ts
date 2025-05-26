@@ -8,13 +8,15 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   error: Error | null;
+  encryptionReady: boolean;
 }
 
 export function useAuth(): AuthState {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     loading: true,
-    error: null
+    error: null,
+    encryptionReady: false
   });
 
   useEffect(() => {
@@ -29,7 +31,8 @@ export function useAuth(): AuthState {
         setAuthState({
           user,
           loading: false,
-          error: null
+          error: null,
+          encryptionReady: !!user,
         });
       },
       (error) => {
@@ -37,7 +40,9 @@ export function useAuth(): AuthState {
         setAuthState({
           user: null,
           loading: false,
-          error
+          error,
+          encryptionReady: false
+ 
         });
       }
     );

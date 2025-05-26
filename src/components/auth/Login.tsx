@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { setUserUID, getMasterKey, getPassPhrase } from '@/utils/encryption';
+import { getMasterKey, recoverWithPassphrase } from '@/utils/encryption';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -27,7 +27,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const router = useRouter();
 
   const [step, setStep] = useState(0);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const resetForm = () => {
     setStep(0);
     setEmail("");
-    setPassword("");
+    setPassword('');
     setConfirmPassword("");
     setError(null);
   };
@@ -51,29 +51,44 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       
-      const user = auth.currentUser;
-      if (user) {
-        setUserUID(user.uid);
-        
-        // Get user's passphrase
-        const phrase = await getPassPhrase();
-        if (!phrase) {
-          console.warn("No passphrase set. User might need to update preferences.");
-        }
-        
-        // Ensure encryption key is loaded into sessionStorage
-        try {
-          await getMasterKey();
-        } catch (error: any) {
-          if (error.message === "ENCRYPTION_KEY_REQUIRED") {
-            console.warn("🛑 Master key missing. Prompt user for recovery.");
-            // You can redirect to recovery page or show a modal here
-            router.push("/settings/security/recovery");
-            return;
-          }
-        }
+      // Try to get the master key. If it's not in session storage, 
+      // getMasterKey will throw an error, which we catch to prompt for passphrase.
+      try {
+        await getMasterKey();
 
         console.log("✅ User logged in successfully");
+        handleDialogChange(false);
+        router.push("/");
+
+      } catch (keyError: any) {
+        if (keyError.message === "MASTER_KEY_NOT_AVAILABLE") {
+          console.warn("🛑 Master key not available. Prompting for passphrase.");
+          setStep(2); // Go to passphrase step
+        } else {
+          // Handle other potential errors from getMasterKey if any are introduced later
+          setError(keyError.message || "Failed to get encryption key.");
+        }
+      }
+
+    } catch (error: any) {
+      setError(error.message || "Login failed");
+    }
+  };
+
+  const [passphrase, setPassphrase] = useState('');
+
+  const handlePassphraseSubmit = async () => {
+    setError(null);
+    if (!passphrase) {
+      setError("Please enter your passphrase.");
+      return;
+    }
+    
+    try {
+      const success = await recoverWithPassphrase(passphrase);
+      
+      if (success) {
+        console.log("✅ Master key recovered successfully");
         handleDialogChange(false);
         router.push("/");
       }
@@ -106,6 +121,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   };
 
   return (
+
     <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -135,7 +151,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
             </Alert>
           )}
 
-          <form onSubmit={handleNext} className="space-y-4">
+          <form onSubmit={step === 2 ? handlePassphraseSubmit : handleNext} className="space-y-4">
             {step === 0 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-medium">Please enter your email</h3>
@@ -163,6 +179,18 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
                 />
               </div>
             )}
+
+            {step === 2 && (
+               <div className="space-y-4">
+               <h3 className="text-sm font-medium">Please enter your passphrase</h3>
+               <Input
+                 type="password" // Use password type for passphrase input
+                 value={passphrase}
+                 onChange={(e) => setPassphrase(e.target.value)}
+                 placeholder="Passphrase"
+               />
+             </div>
+            )}
           </form>
         </div>
         
@@ -179,7 +207,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
             <div></div> // Empty div to maintain layout
           )}
           <Button 
-            onClick={handleNext}
+            onClick={step === 2 ? handlePassphraseSubmit : handleNext}
             type="submit"
           >
             {step === 1 ? "Let's Go! →" : "Next →"}

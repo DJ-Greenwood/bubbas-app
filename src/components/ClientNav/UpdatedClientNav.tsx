@@ -90,6 +90,14 @@ export default function ClientNav() {
             </TabsTrigger>
             
             <TabsTrigger
+            value="/GeminiChat"
+            className={`min-w-[80px] text-center ${isActive('/GeminiChat') ? 'bg-primary text-primary-foreground' : ''}`}
+            asChild
+            >
+            <Link href="/GeminiChat">Gemini Chat</Link>
+            </TabsTrigger>
+            
+            <TabsTrigger
             value="/EmotionChat"
             className={`min-w-[80px] text-center ${isActive('/EmotionChat') ? 'bg-primary text-primary-foreground' : ''}`}
             asChild

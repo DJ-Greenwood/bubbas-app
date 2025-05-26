@@ -12,7 +12,7 @@ import {
 } from '@/utils/firebaseDataService';
 import { saveTokenUsage } from './TokenDataService';
 
-import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { EmotionDetector } from '@/components/emotion/EmotionDetector';
 import { JournalEntry } from '@/types/JournalEntry';
 
 
@@ -22,9 +22,9 @@ import { getDoc, doc } from 'firebase/firestore'; // Import Firestore methods
 import { Emotion } from '@/components/emotion/emotionAssets';
 import { UserProfileData } from '@/types/UserProfileData'; // Import UserProfileData type
 
-const callOpenAI = httpsCallable(functions, "callOpenAI");
+const callGemini = httpsCallable(functions, "callGemini");
 
-// Structure of the expected return from callOpenAI
+// Structure of the expected return from callGemini
 interface OpenAIUsage {
   promptTokens: number;
   completionTokens: number;
@@ -39,7 +39,7 @@ interface OpenAIResponse {
 // 🧠 Chat service to manage conversation history and interactions
 let conversationHistory: { role: string; content: string }[] = [];
 
-const openai_model = process.env.NEXT_PUBLIC_OPENAI_MODEL || "gpt-4o"; // Corrected to NEXT_PUBLIC_
+const openai_model = 'gemini-pro';
 
 // 🔄 Reset the conversation history with a system prompt
 export const resetConversation = (systemPrompt: string) => {
@@ -54,7 +54,7 @@ export const askQuestion = async (question: string): Promise<OpenAIResponse> => 
 
   try {
     console.log("[askQuestion] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
-    const response = await callOpenAI({
+    const response = await callGemini({
       messages: conversationHistory,
       model: openai_model,
       maxTokens: 1000,
@@ -81,7 +81,7 @@ export const generateResponse = async (prompt: string): Promise<OpenAIResponse> 
 
   try {
     console.log("[generateResponse] Sending request to Firebase Callable Function with prompt:", prompt);
-    const response = await callOpenAI({
+    const response = await callGemini({
       messages: [{ role: "user", content: prompt }],
       model: openai_model,
       maxTokens: 1000,
@@ -122,7 +122,7 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
     conversationHistory.length = 0; // Reset history
     conversationHistory.push({ role: "system", content: emotionalPrompt });
 
-    const response = await callOpenAI({
+    const response = await callGemini({
       messages: conversationHistory,
       model: openai_model,
       maxTokens: 1000,
@@ -137,7 +137,7 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
     conversationHistory.push({ role: "assistant", content: assistantReply });
 
     // 🧠 Detect Bubba's emotion based on his reply
-    const emotion = await detectEmotion(assistantReply);
+    const emotion = await EmotionDetector(assistantReply);
 
     return { reply: assistantReply, usage, emotion };
   } catch (error) {

@@ -2,19 +2,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '@/utils/firebaseClient'; // Adjust import
 import { onAuthStateChanged } from 'firebase/auth'; // Adjust import
-import { setUserUID, getMasterKey } from '@/utils/encryption';
-import RecoveryModal from '@/components/RecoveryModal';
+import { setUserUID } from '@/utils/encryption'; 
+import RecoveryModal from '@/components/RecoveryModal'; // Assuming this path is correct
 
 interface AuthContextType {
   currentUser: any; // Use proper Firebase User type
   loading: boolean;
+  needsRecovery: boolean; // Added needsRecovery to AuthContextType
   encryptionReady: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   loading: true,
-  encryptionReady: false
+  encryptionReady: false,
+ needsRecovery: false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -32,23 +34,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
       if (user) {
         // User is signed in
         setUserUID(user.uid);
-        
-        // Try to get encryption key
-        try {
-          await getMasterKey();
-          setEncryptionReady(true);
-        } catch (error) {
-          if (error instanceof Error && error.message === "ENCRYPTION_KEY_REQUIRED") {
-            setNeedsRecovery(true);
-          } else {
-            console.error("Error getting encryption key:", error);
-          }
-        }
-      } else {
-        // User is signed out
-        setEncryptionReady(false);
       }
-      
       setLoading(false);
     });
     
@@ -66,10 +52,11 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setNeedsRecovery(false);
   };
   
-  const value = {
+  const value: AuthContextType = {
     currentUser,
     loading,
-    encryptionReady
+    encryptionReady,
+    needsRecovery,
   };
   
   return (

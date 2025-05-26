@@ -6,8 +6,8 @@ export interface JournalEntry {
   createdAt?: string;
   timestamp: string;
   emotion: Emotion;
-  encryptedUserText?: string; 
-  encryptedBubbaReply?: string;
+  encryptedUserText?: string | null; 
+  encryptedBubbaReply?: string | null;
   deleted: boolean;
   status: string;  
   lastEdited: string;
