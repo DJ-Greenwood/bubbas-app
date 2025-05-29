@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/utils/firebaseClient';
-import { setUserUID } from '@/utils/encryption';
+import { setUserUID } from "@/components/context/AuthContext";
 
 interface AuthState {
   user: User | null;

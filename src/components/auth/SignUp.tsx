@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/utils/firebaseClient';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { createUserProfile } from '@/utils/userProfileService';
-import { setUserUID, setupEncryption } from '@/utils/encryption';
+import { setupEncryption } from '@/utils/encryption';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -72,7 +72,7 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
         throw new Error('User not authenticated after sign-up.');
       }
 
-      setUserUID(user.uid);
+      // AuthContext's onAuthStateChanged will handle setting the user UID
 
       const result = await setupEncryption(passphrase.trim());
       setRecoveryCode(result.recoveryCode);

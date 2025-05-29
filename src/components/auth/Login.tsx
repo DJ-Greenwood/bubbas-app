@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { getMasterKey, recoverWithPassphrase } from '@/utils/encryption';
+import { recoverWithPassphrase } from '@/utils/encryption';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -50,25 +50,11 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      
-      // Try to get the master key. If it's not in session storage, 
-      // getMasterKey will throw an error, which we catch to prompt for passphrase.
-      try {
-        await getMasterKey();
 
-        console.log("✅ User logged in successfully");
-        handleDialogChange(false);
-        router.push("/");
-
-      } catch (keyError: any) {
-        if (keyError.message === "MASTER_KEY_NOT_AVAILABLE") {
-          console.warn("🛑 Master key not available. Prompting for passphrase.");
-          setStep(2); // Go to passphrase step
-        } else {
-          // Handle other potential errors from getMasterKey if any are introduced later
-          setError(keyError.message || "Failed to get encryption key.");
-        }
-      }
+      // The AuthContext now handles checking for the master key and
+      // prompting for the passphrase if necessary after successful sign-in.
+      // This component should now rely on AuthContext state for navigation/next steps.
+      // handleDialogChange(false); // Close dialog upon successful login
 
     } catch (error: any) {
       setError(error.message || "Login failed");
@@ -89,8 +75,8 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
       
       if (success) {
         console.log("✅ Master key recovered successfully");
+        // The AuthContext should handle navigation/encryptionReady state
         handleDialogChange(false);
-        router.push("/");
       }
     } catch (error: any) {
       setError(error.message || "Login failed");

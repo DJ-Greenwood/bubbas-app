@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { encryptField, getMasterKey } from '@/utils/encryption'; // Assuming encryption.ts is in the parent directory
 import { useAuth } from '@/hooks/useAuth'; // Import useAuth hook
 import { EmotionDetector } from '@/components/emotion/EmotionDetector'; // Adjust path as needed
-import { detectEmotion} from '@/components/emotion/EmotionDetector'; // Import the correct function
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -13,15 +13,24 @@ interface ChatMessage {
 }
 
 const GeminiChat: React.FC = () => {
-  const { encryptionReady } = useAuth(); // Get encryptionReady from useAuth
+  const { encryptionReady, user } = useAuth(); // Get encryptionReady from useAuth
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [detectedEmotion, setDetectedEmotion] = useState<string | null>(null); // State to store detected emotion
-  
+  const [masterKey, setMasterKey] = useState(""); // State to store master key
 
   // Optional: Effect to log encryption status
   useEffect(() => {
-    
+    const fetchMasterKey = async () => {
+    if (user){
+      // Set Master Key 
+      const fetchedMasterKey = await getMasterKey(user.uid);
+      if (fetchedMasterKey !== null) {
+        setMasterKey(fetchedMasterKey);
+      }
+      console.log('Master Key:', fetchedMasterKey);
+      }
+    }   
     console.log('Encryption Ready:', encryptionReady);
   }, [encryptionReady]);
 
@@ -31,7 +40,7 @@ const GeminiChat: React.FC = () => {
     if (input.trim()) {
 
       // Encrypt user input
-      const encryptedUserInput = await encryptField(masterKey, userInput);
+      const encryptedUserInput = encryptField(masterKey, userInput);
 
       if (encryptedUserInput === null) {
         // Handle encryption error
@@ -52,7 +61,7 @@ const GeminiChat: React.FC = () => {
 
       // --- Emotion Detection ---
       try {
-        const detectedEmotion = await detectEmotion(userInput); // Use the correct function name
+        const detectedEmotion = await EmotionDetector(userInput); // Use the correct function name
         setDetectedEmotion(detectedEmotion); // Update the state with the detected emotion
         console.log("Detected emotion:", detectedEmotion); // Log the detected emotion
       } catch (error) {
@@ -63,7 +72,7 @@ const GeminiChat: React.FC = () => {
 
       // Simulate an AI response (replace with actual AI call)
       const simulatedAIResponse = "This is a simulated AI response.";
-      const encryptedAIResponse = await encryptField(simulatedAIResponse);
+      const encryptedAIResponse = await encryptField(masterKey, simulatedAIResponse);
 
       if (encryptedAIResponse === null) {
           // Handle encryption error for AI response

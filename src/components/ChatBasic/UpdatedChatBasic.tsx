@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSubscription } from "@/utils/subscriptionService";
 import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
-import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { EmotionDetector } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets';
 import { askQuestion, startEmotionalSupportSession } from '@/utils/chatServices';
 import { saveJournalEntry } from '@/utils/firebaseDataService';
@@ -29,10 +29,9 @@ import SubscriptionSelector from '@/components/auth/SubscriptionSelector';
 
 interface ChatWithLimitsProps {
   user: User | null;
-  passPhrase: string | null;
-}
+  }
 
-const ChatWithLimits: React.FC<ChatWithLimitsProps> = ({ user, passPhrase }) => {
+const ChatWithLimits: React.FC<ChatWithLimitsProps> = ({ user }) => {
   const [userInput, setUserInput] = useState("");
   const [emotion, setEmotion] = useState<Emotion | null>(null);
   const [response, setResponse] = useState("");
@@ -120,7 +119,7 @@ const ChatWithLimits: React.FC<ChatWithLimitsProps> = ({ user, passPhrase }) => 
     try {
       // Detect emotion from user input
       console.log("Detecting emotion from input...");
-      const detectedEmotion = await detectEmotion(trimmedInput);
+      const detectedEmotion = await EmotionDetector(trimmedInput);
       setEmotion(detectedEmotion);
 
       // Get response from chat service
@@ -144,27 +143,8 @@ const ChatWithLimits: React.FC<ChatWithLimitsProps> = ({ user, passPhrase }) => 
       await trackTokenUsage(tokenUsage, 'emotion');
       
       // Save to journal if we have all required data
-      if (user && passPhrase) {
-        try {
-          console.log("Saving journal entry with character set:", characterSet);
-          
-          await saveJournalEntry(
-            trimmedInput,
-            reply,
-            detectedEmotion,
-            tokenUsage
-          );
-          console.log("✅ Journal entry saved successfully");
-        } catch (saveError) {
-          console.error("Error saving journal entry:", saveError);
-          toast({
-            title: "Save Error",
-            description: "Failed to save this conversation. Please try again.",
-            variant: "destructive"
-          });
-        }
-      } else if (!passPhrase && user) {
-        console.error("Cannot save journal entry: No passphrase available");
+      if (!user) {
+        console.error("Cannot save journal entry: No user available");
         toast({
           title: "Encryption Error",
           description: "Unable to save this conversation due to missing encryption key.",
@@ -172,6 +152,25 @@ const ChatWithLimits: React.FC<ChatWithLimitsProps> = ({ user, passPhrase }) => 
         });
       }
     } catch (error) {
+      // If user is available and there was an error during the main chat process,
+      // attempt to save a partial journal entry with the user's input and the error response.
+      if (user) {
+        try {
+          console.log("Saving partial journal entry after error with character set:", characterSet);
+          await saveJournalEntry(
+            trimmedInput,
+            "Oops! Something went wrong. Bubba is trying again.", // Use the fallback error message
+            emotion || 'reflective', // Use the detected emotion or a fallback
+            { promptTokens: 0, completionTokens: 0, totalTokens: 0 } // No token usage for error response
+          );
+          console.log("✅ Partial journal entry saved successfully");
+        } catch (saveError) {
+          console.error("Error saving partial journal entry:", saveError);
+        }
+      } else {
+        console.error("Cannot save partial journal entry after error: No user available");
+      }
+      
       console.error("Failed to submit:", error);
       setResponse("Oops! Something went wrong. Bubba is trying again.");
       
