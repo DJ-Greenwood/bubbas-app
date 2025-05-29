@@ -4,8 +4,8 @@ import { defineSecret } from 'firebase-functions/params';
 import { CallableRequest } from 'firebase-functions/v2/https';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { GoogleGenerativeAI, GenerativeModel, Content, Part } from '@google/generative-ai';
 import OpenAI from 'openai';
-import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import { v4 as uuidv4 } from 'uuid';
 
 // Initialize Firebase app if not already initialized
@@ -18,14 +18,15 @@ if (!getApps().length) {
 const db = getFirestore();
 
 // Define secrets for OpenAI API key and model
-const OPENAI_API_KEY = defineSecret("openai-key");
-const OPENAI_MODEL = defineSecret("openai-model");
+const GOOGLE_API_KEY = defineSecret("GOOGLE_API_KEY"); // Assuming you use Google API Key for Gemini
+const GEMINI_MODEL = defineSecret("gemini-model"); // You can change the default model here if needed
 
 // Request shapes expected from frontend
 interface OpenAIRequest {
   messages: { role: string; content: string }[];
   model?: string;
   maxTokens?: number;
+  temperature?: number; // Added temperature field
   userId?: string; // To track usage by user
   saveHistory?: boolean; // Flag to determine if we should save conversation history
   sessionId?: string; // For tracking continuous conversations
@@ -60,7 +61,7 @@ function getTransactionId(providedId?: string): string {
  */
 export const callOpenAI = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+ secrets: [GOOGLE_API_KEY, GEMINI_MODEL],
   },
   async (request: CallableRequest<OpenAIRequest>) => {
     console.log("[callOpenAI] Received request");
@@ -70,6 +71,7 @@ export const callOpenAI = functions.onCall(
       messages, 
       model, 
       maxTokens = 1000, 
+      temperature, // Extract temperature
       userId, 
       saveHistory = false,
       sessionId,
@@ -111,15 +113,18 @@ export const callOpenAI = functions.onCall(
     }
 
     // Type assertion to match OpenAI expectations
-    const typedMessages = messages as ChatCompletionMessageParam[];
+    // Convert OpenAI format to Gemini format
+    const geminiMessages: Content[] = messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model', // Gemini uses 'user' and 'model'
+      parts: [{ text: msg.content }],
+    }));
 
     // Get API key and default model
-    const apiKey = OPENAI_API_KEY.value();
-    const defaultModel = OPENAI_MODEL.value() || "gpt-4o";
+    const apiKey = GOOGLE_API_KEY.value();
+    const defaultModel = GEMINI_MODEL.value() || "gemini-pro";
     const selectedModel = model || defaultModel;
-
-    // Create OpenAI instance
-    const openai = new OpenAI({ apiKey });
+ // Initialize Gemini
+ const genAI = new GoogleGenerativeAI(apiKey);
 
     try {
       // If we have a user ID, initialize the transaction usage tracker
@@ -132,16 +137,21 @@ export const callOpenAI = functions.onCall(
         );
       }
 
-      // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: selectedModel,
-        messages: typedMessages,
-        max_tokens: maxTokens,
-        user: effectiveUserId || undefined, // Pass user ID for OpenAI's usage tracking
+      // Initialize Gemini
+      const geminiModel = genAI.getGenerativeModel({ model: selectedModel });
+
+      // Call Gemini API
+      const generationConfig = {
+ maxOutputTokens: maxTokens, // Translate maxTokens
+        temperature: temperature !== undefined ? temperature : 0.7, // Use provided temperature or default to 0.7
+      };
+ const result = await geminiModel.generateContent({
+        contents: geminiMessages,
+ generationConfig, // Include generation config
       });
 
-      const content = completion.choices?.[0]?.message?.content || "No reply generated.";
-      const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const content = result.response.text() || 'No reply generated.';
+ const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; 
 
       console.log("[callOpenAI] OpenAI reply received");
 
@@ -151,9 +161,9 @@ export const callOpenAI = functions.onCall(
           effectiveUserId,
           transactionId,
           "primary_call",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           selectedModel
         );
       }
@@ -163,8 +173,8 @@ export const callOpenAI = functions.onCall(
         await saveConversationHistory(
           effectiveUserId,
           sessionId,
-          typedMessages[typedMessages.length - 1],
-          { role: "assistant", content: content },
+          messages[messages.length - 1] as Message, // Save original user message
+          { role: "assistant", content: content } as Message, // Save generated assistant message
           selectedModel,
           transactionId
         );
@@ -172,10 +182,12 @@ export const callOpenAI = functions.onCall(
 
       return {
         content,
+        // Gemini doesn't provide detailed token usage in the same way as OpenAI
+        // You might need to track usage differently or estimate it
         model: selectedModel,
         usage: {
-          promptTokens: usage.prompt_tokens || 0,
-          completionTokens: usage.completion_tokens || 0,
+          promptTokens: 0, // Placeholder - Gemini usage tracking varies
+ completionTokens: 0,
           totalTokens: usage.total_tokens || 0,
         },
         transactionId
@@ -195,7 +207,7 @@ export const callOpenAI = functions.onCall(
  */
 export const analyzeEmotion = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+    secrets: [GOOGLE_API_KEY], // Use Google API Key
   },
   async (request: CallableRequest<{
     text: string;
@@ -239,11 +251,11 @@ export const analyzeEmotion = functions.onCall(
     }
     
     // Get API key and default model
-    const apiKey = OPENAI_API_KEY.value();
+    const apiKey = GOOGLE_API_KEY.value();
     const defaultModel = "gpt-3.5-turbo"; // Use cheaper model for emotion analysis
     
-    // Create OpenAI instance
-    const openai = new OpenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+
     
     try {
       // Initialize transaction if user is authenticated
@@ -257,25 +269,34 @@ export const analyzeEmotion = functions.onCall(
       }
       
       // Create emotion analysis prompt
-      const messages: ChatCompletionMessageParam[] = [
-        { 
+      // Convert to Gemini Content format
+      const messages: Content[] = [
+        {
           role: "system", 
-          content: `You are an emotional analysis assistant. Analyze the emotional content of the user's text and return a single emotion that best represents the overall tone. Choose from: happy, sad, angry, anxious, calm, excited, frustrated, neutral, confused, hopeful, overwhelmed, grateful, determined, or pensive. Return ONLY the emotion label without any explanations or additional text.`
+          parts: [{ text: `You are an emotional analysis assistant. Analyze the emotional content of the user's text and return a single emotion that best represents the overall tone. Choose from: happy, sad, angry, anxious, calm, excited, frustrated, neutral, confused, hopeful, overwhelmed, grateful, determined, or pensive. Return ONLY the emotion label without any explanations or additional text.` }]
         },
-        { role: "user", content: text }
+        { role: "user", parts: [{ text: text }] }
       ];
       
-      // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: defaultModel,
-        messages,
+      // Initialize Gemini model for analysis
+      const emotionModel = genAI.getGenerativeModel({ model: "gemini-pro" }); // Use gemini-pro for analysis
+
+      // Call Gemini API
+ const generationConfig = {
+ maxOutputTokens: 50, // Use existing max_tokens
+ temperature: 0.3, // Use existing temperature
+      };
+      const result = await emotionModel.generateContent({
+ // model is specified in getGenerativeModel
+        contents: messages,
         max_tokens: 50,
         temperature: 0.3,
         user: effectiveUserId || undefined,
       });
+
       
-      const content = completion.choices?.[0]?.message?.content || "neutral";
-      const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const content = result.response.text() || "neutral";
+      const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; // Gemini usage placeholder
       
       console.log("[analyzeEmotion] Emotion analysis completed");
       
@@ -285,9 +306,9 @@ export const analyzeEmotion = functions.onCall(
           effectiveUserId,
           transactionId,
           "emotion_analysis",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           defaultModel
         );
       }
@@ -311,7 +332,7 @@ export const analyzeEmotion = functions.onCall(
  */
 export const analyzeEmotionWithTracking = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+    secrets: [GOOGLE_API_KEY], // Use Google API Key
   },
   async (request: CallableRequest<{
     text: string;
@@ -355,11 +376,11 @@ export const analyzeEmotionWithTracking = functions.onCall(
     }
     
     // Get API key and default model
-    const apiKey = OPENAI_API_KEY.value();
+    const apiKey = GOOGLE_API_KEY.value();
     const defaultModel = "gpt-3.5-turbo"; // Use cheaper model for emotion analysis
     
-    // Create OpenAI instance
-    const openai = new OpenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+
     
     try {
       // Initialize transaction if first call in chain and user is authenticated
@@ -373,31 +394,35 @@ export const analyzeEmotionWithTracking = functions.onCall(
       }
       
       // Create emotion analysis prompt
-      const messages: ChatCompletionMessageParam[] = [
-        { 
+      // Convert to Gemini Content format
+      const messages: Content[] = [
+        {
           role: "system", 
-          content: `You are an emotion analysis system. Analyze the emotional tone of the given text and respond with a JSON object containing:
+          parts: [{ text: `You are an emotion analysis system. Analyze the emotional tone of the given text and respond with a JSON object containing:
             1. primaryEmotion: The dominant emotion (one of: happy, sad, angry, fearful, disgusted, surprised, neutral, excited, anxious, confused, nostalgic, hopeful, grateful, amused, bored)
             2. intensity: A number from 1-10 indicating intensity
             3. secondaryEmotion: A secondary emotion present (use same options as primary)
             4. briefExplanation: A very brief 1-sentence explanation
             Format: { "primaryEmotion": "", "intensity": 0, "secondaryEmotion": "", "briefExplanation": "" }`
+            }]
         },
-        { role: "user", content: text }
+        { role: "user", parts: [{ text: text }] }
       ];
+      const emotionModel = genAI.getGenerativeModel({ model: "gemini-pro" }); // Use gemini-pro for analysis
       
       // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: defaultModel,
-        messages,
-        max_tokens: 200,
-        temperature: 0.2, // Lower temperature for more consistent results
-        response_format: { type: "json_object" },
+ const generationConfig = {
+ temperature: 0.2, // Use existing temperature
+ response_format: { type: "json_object" }, // Use existing response_format
+      };
+      const result = await emotionModel.generateContent({
+ contents: messages,
+ generationConfig,
         user: effectiveUserId || undefined,
       });
       
-      const reply = completion.choices?.[0]?.message?.content || '{"primaryEmotion":"neutral","intensity":1,"secondaryEmotion":"neutral","briefExplanation":"Unable to determine emotions."}';
-      const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const reply = result.response.text() || '{"primaryEmotion":"neutral","intensity":1,"secondaryEmotion":"neutral","briefExplanation":"Unable to determine emotions."}';
+      const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; // Gemini usage placeholder
       
       console.log("[analyzeEmotionWithTracking] Emotion analysis completed");
       
@@ -407,9 +432,9 @@ export const analyzeEmotionWithTracking = functions.onCall(
           effectiveUserId,
           transactionId,
           "emotion_analysis",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           defaultModel
         );
       }
@@ -420,8 +445,8 @@ export const analyzeEmotionWithTracking = functions.onCall(
         return {
           ...emotionData,
           usage: {
-            promptTokens: usage.prompt_tokens || 0,
-            completionTokens: usage.completion_tokens || 0,
+            promptTokens: 0, // Gemini usage placeholder
+            completionTokens: 0, // Gemini usage placeholder
             totalTokens: usage.total_tokens || 0,
           },
           transactionId
@@ -448,7 +473,7 @@ export const analyzeEmotionWithTracking = functions.onCall(
  */
 export const startEmotionalSupportSession = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+    secrets: [GOOGLE_API_KEY], // Use Google API Key
   },
   async (request: CallableRequest<{ userId?: string; transactionId?: string }>) => {
     console.log("[startEmotionalSupportSession] Starting session");
@@ -495,16 +520,19 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
     `.trim();
     
     // Create conversation with system prompt
-    const messages: ChatCompletionMessageParam[] = [
-      { role: "system", content: emotionalPrompt }
+    // Convert to Gemini Content format
+    const messages: Content[] = [
+      { role: "system", parts: [{ text: emotionalPrompt }] }
     ];
     
     // Get API key and default model
-    const apiKey = OPENAI_API_KEY.value();
-    const defaultModel = OPENAI_MODEL.value() || "gpt-4o";
+    const apiKey = GOOGLE_API_KEY.value();
+    const defaultModel = GEMINI_MODEL.value() || "gemini-pro";
     
-    // Create OpenAI instance
-    const openai = new OpenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    const geminiModel = genAI.getGenerativeModel({ model: defaultModel });
+
     
     try {
       // Initialize transaction if user is authenticated
@@ -517,16 +545,16 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
         );
       }
       
-      // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: defaultModel,
-        messages,
-        max_tokens: 1000,
-        user: effectiveUserId || undefined,
+      // Call Gemini API
+      const result = await geminiModel.generateContent({
+ contents: messages,
+ generationConfig: {
+ temperature: 0.7, // Default temperature
+ },
       });
       
-      const reply = completion.choices?.[0]?.message?.content || "Hi! I'm here whenever you're ready to talk.";
-      const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const reply = result.response.text() || "Hi! I'm here whenever you're ready to talk.";
+      const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; // Gemini usage placeholder
       
       console.log("[startEmotionalSupportSession] Session started");
       
@@ -540,9 +568,9 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
           effectiveUserId,
           transactionId,
           "start_session",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           defaultModel
         );
         
@@ -550,8 +578,8 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
         await saveConversationHistory(
           effectiveUserId,
           sessionId,
-          { role: "system", content: emotionalPrompt },
-          { role: "assistant", content: reply },
+          { role: "system", content: emotionalPrompt } as Message, // Save original system message
+          { role: "assistant", content: reply } as Message, // Save generated assistant message
           defaultModel,
           transactionId
         );
@@ -570,8 +598,8 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
       return {
         reply,
         usage: {
-          promptTokens: usage.prompt_tokens || 0,
-          completionTokens: usage.completion_tokens || 0,
+ promptTokens: 0, // Gemini usage placeholder
+ completionTokens: 0, // Gemini usage placeholder
           totalTokens: usage.total_tokens || 0,
         },
         emotion,
@@ -593,7 +621,7 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
  */
 export const continueConversation = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+    secrets: [GOOGLE_API_KEY], // Use Google API Key
   },
   async (request: CallableRequest<{
     sessionId: string;
@@ -653,7 +681,7 @@ export const continueConversation = functions.onCall(
           effectiveUserId,
           transactionId,
           sessionType,
-          OPENAI_MODEL.value() || "gpt-4o"
+          GEMINI_MODEL.value() || "gemini-pro"
         );
       }
       
@@ -673,13 +701,13 @@ export const continueConversation = functions.onCall(
           // Reconstruct conversation history
           snapshot.forEach(doc => {
             const data = doc.data();
-            
+
             // Add system message only once at the beginning
             if (data.userMessage.role === 'system' && conversationHistory.length === 0) {
               conversationHistory.push(data.userMessage);
             }
             // Add user and assistant messages
-            else if (data.userMessage.role !== 'system') {
+            if (data.userMessage.role !== 'system') {
               conversationHistory.push(data.userMessage);
             }
             
@@ -698,21 +726,28 @@ export const continueConversation = functions.onCall(
         ];
       }
       
-      // Add the new user message
+      // Add the new user message and convert to Gemini Content format
       conversationHistory.push({ role: "user", content: message });
+      const geminiConversation: Content[] = conversationHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content as string }],
+      }));
       
       // Get API key and default model
-      const apiKey = OPENAI_API_KEY.value();
-      const defaultModel = OPENAI_MODEL.value() || "gpt-4o";
+      const apiKey = GOOGLE_API_KEY.value();
+      const defaultModel = GEMINI_MODEL.value() || "gemini-pro"; // Use the default Gemini model
       
       // Create OpenAI instance
-      const openai = new OpenAI({ apiKey });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const geminiModel = genAI.getGenerativeModel({ model: defaultModel });
       
       // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: defaultModel,
-        messages: conversationHistory,
-        max_tokens: 1000,
+ const generationConfig = {
+ maxOutputTokens: 1000, // Use existing max_tokens
+ temperature: 0.7, // Default temperature
+      };
+      const result = await geminiModel.generateContent({
+ contents: geminiConversation, // Gemini expects Content[]
         user: effectiveUserId || undefined,
       });
       
@@ -730,17 +765,17 @@ export const continueConversation = functions.onCall(
           effectiveUserId,
           transactionId,
           "continue_conversation",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           defaultModel
         );
         
         await saveConversationHistory(
           effectiveUserId,
           sessionId,
-          { role: "user", content: message },
-          { role: "assistant", content: reply },
+          { role: "user", content: message } as Message, // Save original user message
+          { role: "assistant", content: reply } as Message, // Save generated assistant message
           defaultModel,
           transactionId
         );
@@ -760,8 +795,8 @@ export const continueConversation = functions.onCall(
       return {
         reply,
         usage: {
-          promptTokens: usage.prompt_tokens || 0,
-          completionTokens: usage.completion_tokens || 0,
+ promptTokens: 0, // Gemini usage placeholder
+ completionTokens: 0, // Gemini usage placeholder
           totalTokens: usage.total_tokens || 0,
         },
         transactionId
@@ -781,7 +816,7 @@ export const continueConversation = functions.onCall(
  */
 export const processEmotionalChat = functions.onCall(
   {
-    secrets: [OPENAI_API_KEY, OPENAI_MODEL],
+    secrets: [GOOGLE_API_KEY], // Use Google API Key
   },
   async (request: CallableRequest<{
     message: string;
@@ -829,15 +864,16 @@ export const processEmotionalChat = functions.onCall(
       throw new functions.HttpsError(
         'invalid-argument',
         "Message is required"
-      );
+      );    
     }
     
     // Get API key and default model
-    const apiKey = OPENAI_API_KEY.value();
-    const defaultModel = OPENAI_MODEL.value() || "gpt-4o";
+    const apiKey = GOOGLE_API_KEY.value();
+    const defaultModel = GEMINI_MODEL.value() || "gemini-pro";
     const emotionModel = "gpt-3.5-turbo"; // Use cheaper model for emotion analysis
-    
-    // Create OpenAI instance
+
+ // Initialize Gemini
+    const genAI = new GoogleGenerativeAI(apiKey);
     const openai = new OpenAI({ apiKey });
     
     try {
@@ -865,7 +901,7 @@ export const processEmotionalChat = functions.onCall(
 You are Bubbas, a compassionate AI companion. Your goal is to help the user reflect on their day, process emotions, and feel supported.
 Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
         `.trim();
-        
+
         conversationHistory = [
           { role: "system", content: emotionalPrompt },
           { role: "user", content: message }
@@ -883,13 +919,13 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
           // Reconstruct conversation history
           snapshot.forEach(doc => {
             const data = doc.data();
-            
+
             // Add system message only once at the beginning
             if (data.userMessage.role === 'system' && conversationHistory.length === 0) {
               conversationHistory.push(data.userMessage);
             }
             // Add user and assistant messages
-            else if (data.userMessage.role !== 'system') {
+            if (data.userMessage.role !== 'system') {
               conversationHistory.push(data.userMessage);
             }
             
@@ -919,29 +955,33 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
       if (analyzeEmotion) {
         console.log("[processEmotionalChat] Analyzing emotion");
         
-        const emotionMessages: ChatCompletionMessageParam[] = [
-          { 
+        // Convert to Gemini Content format
+        const emotionMessages: Content[] = [
+          {
             role: "system", 
-            content: `You are an emotion analysis system. Analyze the emotional tone of the given text and respond with a JSON object containing:
+            parts: [{ text: `You are an emotion analysis system. Analyze the emotional tone of the given text and respond with a JSON object containing:
               1. primaryEmotion: The dominant emotion (happy, sad, angry, fearful, disgusted, surprised, neutral, excited, anxious, confused, nostalgic, hopeful, grateful)
               2. intensity: A number from 1-10 indicating intensity
               3. briefExplanation: A very brief explanation
               Format: { "primaryEmotion": "", "intensity": 0, "briefExplanation": "" }`
+              }]
           },
-          { role: "user", content: message }
+          { role: "user", parts: [{ text: message }] }
         ];
-        
-        const emotionCompletion = await openai.chat.completions.create({
-          model: emotionModel,
-          messages: emotionMessages,
-          max_tokens: 150,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
+        const emotionGeminiModel = genAI.getGenerativeModel({ model: "gemini-pro" }); // Use gemini-pro for analysis
+
+ const emotionGenerationConfig = {
+ maxOutputTokens: 150, // Use existing max_tokens
+ temperature: 0.2, // Use existing temperature
+ response_format: { type: "json_object" }, // Use existing response_format
+        };
+        const emotionCompletion = await emotionGeminiModel.generateContent({
+ contents: emotionMessages,
           user: effectiveUserId || undefined,
         });
         
-        const emotionReply = emotionCompletion.choices?.[0]?.message?.content || '{"primaryEmotion":"neutral","intensity":1,"briefExplanation":"Unable to determine emotion."}';
-        const emotionUsage = emotionCompletion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        const emotionReply = emotionCompletion.response.text() || '{"primaryEmotion":"neutral","intensity":1,"briefExplanation":"Unable to determine emotion."}'; // Default JSON format
+        const emotionUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; // Placeholder for Gemini usage
         
         // Record the emotion analysis subcall
         if (effectiveUserId) {
@@ -949,9 +989,9 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
             effectiveUserId,
             transactionId,
             "emotion_analysis",
-            emotionUsage.prompt_tokens,
-            emotionUsage.completion_tokens,
-            emotionUsage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
             emotionModel
           );
         }
@@ -974,25 +1014,32 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
       // Now generate the AI response
       console.log("[processEmotionalChat] Generating response");
       
-      const completion = await openai.chat.completions.create({
-        model: defaultModel,
-        messages: conversationHistory,
+      // Convert conversation history to Gemini Content format for the main chat model
+      const geminiConversation: Content[] = conversationHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content as string }],
+      }));
+
+ const mainGenerationConfig = {
+ maxOutputTokens: 1000, // Use existing max_tokens
+      };
+      const completion = await genAI.getGenerativeModel({ model: defaultModel }).generateContent({
         max_tokens: 1000,
         user: effectiveUserId || undefined,
       });
       
-      const reply = completion.choices?.[0]?.message?.content || "No reply generated.";
-      const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-      
+      const reply = completion.response.text() || "No reply generated.";
+      const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }; // Gemini usage placeholder
+
       // Record the response generation subcall
       if (effectiveUserId && sessionId) {
         await recordTransactionSubcall(
           effectiveUserId,
           transactionId,
           "generate_response",
-          usage.prompt_tokens,
-          usage.completion_tokens,
-          usage.total_tokens,
+ 0, // Gemini prompt tokens placeholder
+ 0, // Gemini completion tokens placeholder
+ 0, // Gemini total tokens placeholder
           defaultModel
         );
         
@@ -1000,8 +1047,8 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
         await saveConversationHistory(
           effectiveUserId,
           sessionId,
-          { role: "user", content: message },
-          { role: "assistant", content: reply },
+          { role: "user", content: message } as Message, // Save original user message
+          { role: "assistant", content: reply } as Message, // Save generated assistant message
           defaultModel,
           transactionId
         );
@@ -1022,8 +1069,8 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
       return {
         reply,
         usage: {
-          promptTokens: usage.prompt_tokens || 0,
-          completionTokens: usage.completion_tokens || 0,
+ promptTokens: 0, // Gemini usage placeholder
+ completionTokens: 0, // Gemini usage placeholder
           totalTokens: usage.total_tokens || 0,
         },
         emotion: emotionData,
@@ -1214,8 +1261,8 @@ async function updateGlobalUsageStats(
 async function saveConversationHistory(
   userId: string,
   sessionId: string,
-  userMessage: ChatCompletionMessageParam,
-  assistantMessage: ChatCompletionMessageParam,
+  userMessage: Message,
+  assistantMessage: Message,
   model: string,
   transactionId: string
 ): Promise<void> {

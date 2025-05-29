@@ -4,18 +4,19 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { auth } from '@/utils/firebaseClient';
-import { setUserUID } from '@/utils/encryption';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { LoginDialog } from '../auth/Login';
 import { SignUpDialog } from '../auth/SignUp';
 
 export default function ClientNav() {
+// Suggested code may be subject to a license. Learn more: ~LicenseLog:1704083582.
   const { user } = useAuth();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState('/');
   const [loginOpen, setLoginOpen] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
+  const [UserUID, setUserUID] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -87,6 +88,14 @@ export default function ClientNav() {
             asChild
             >
             <Link href="/ChatBasic">Chat Basic</Link>
+            </TabsTrigger>
+            
+            <TabsTrigger
+            value="/GeminiChat"
+            className={`min-w-[80px] text-center ${isActive('/GeminiChat') ? 'bg-primary text-primary-foreground' : ''}`}
+            asChild
+            >
+            <Link href="/GeminiChat">Gemini Chat</Link>
             </TabsTrigger>
             
             <TabsTrigger

@@ -23,8 +23,7 @@ export interface UserProfileData {
   preferences: {
     username?: string;
     phoneNumber?: string;
-    security?:{
-      passPhrase?: string;
+    security?:{    
       userauthority?: 'user' | 'admin' | 'superadmin';
     }
     timezone?: string;

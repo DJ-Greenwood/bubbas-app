@@ -5,10 +5,10 @@ import {
   collection, addDoc, getDocs, query, where, 
   orderBy, increment, serverTimestamp, Timestamp, limit as firestoreLimit, 
   startAfter as firestoreStartAfter
-} from 'firebase/firestore';
-import { encryptField, decryptField, getPassPhrase } from './encryption';
+} from 'firebase/firestore'; 
+import { encryptField, getMasterKey} from './encryption';
 import { JournalEntry } from '@/types/JournalEntry';
-import { detectEmotion } from '@/components/emotion/EmotionDetector';
+import { EmotionDetector } from '@/components/emotion/EmotionDetector';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';
 import { saveTokenUsage } from './TokenDataService'; // Assuming this is the correct import path
 
@@ -16,6 +16,7 @@ import { saveTokenUsage } from './TokenDataService'; // Assuming this is the cor
 export const getCurrentUserUid = (): string => {
   const user = auth.currentUser;
   if (!user) {
+ 
     throw new Error('User not authenticated');
   }
   return user.uid;
@@ -85,13 +86,18 @@ export const saveJournalEntry = async (
   usage: { promptTokens: number; completionTokens: number; totalTokens: number }
 ) => {
   const uid = getCurrentUserUid();
+  const masterKey = await getMasterKey(uid);
+  if (!masterKey) {
+    throw new Error('Master key not found');
+  }
+  
   const now = new Date();
   const timestamp = now.toISOString();
 
   try {
-    const encryptedUserText = await encryptField(userText);
-    const encryptedBubbaReply = await encryptField(bubbaReply);
-    const emotion = await detectEmotion(detectedEmotionText);
+    const encryptedUserText = await encryptField(masterKey, userText);
+    const encryptedBubbaReply = await encryptField(masterKey, bubbaReply);
+    const emotion = await EmotionDetector(detectedEmotionText);
     
     // Get the current character set from user preferences
     const characterSet = await getUserEmotionCharacterSet();
@@ -142,26 +148,29 @@ export const saveJournalEntry = async (
 export const editJournalEntry = async (
   entryId: string,
   newUserText: string,
-  uid?: string
+ uid?: string
 ) => {
   try {
-    const userUID = uid || getCurrentUserUid();
+    const uid = getCurrentUserUid();
+    const masterKey = await getMasterKey(uid);
     // Fix: Update path to match the new structure
-    const ref = doc(db, 'users', userUID, 'journal', entryId);
+    const ref = doc(db, 'users', uid, 'journal', entryId);
     const docSnap = await getDoc(ref);
-    
     if (!docSnap.exists()) {
       throw new Error('Journal entry not found');
+    } 
+    if (!masterKey) {
+      throw new Error('Master key not found');
     }
     
-    const encryptedUserText = await encryptField(newUserText);
-    const emotion = await detectEmotion(newUserText);
+    const encryptedUserText = await encryptField(masterKey, newUserText);
+    const emotion = await EmotionDetector(newUserText);
     
     await updateDoc(ref, {
       encryptedUserText,
       emotion,
       lastEdited: new Date().toISOString(),
-      lastEditedBy: userUID
+      lastEditedBy: uid
     });
     
     return true;
@@ -226,13 +235,12 @@ export const getJournalEntries = async (
 export const softDeleteJournalEntry = async (
   entryId: string,
   uid?: string
-) => {
+) => { 
   try {
     const userUID = uid || getCurrentUserUid();
     // Fix: Update path to match the new structure
     const ref = doc(db, 'users', userUID, 'journal', entryId);
     const docSnap = await getDoc(ref);
-    
     if (!docSnap.exists()) {
       throw new Error('Journal entry not found');
     }

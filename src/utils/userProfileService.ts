@@ -97,9 +97,6 @@ export const createUserProfile = async (user: string, trimmedEmail: string, trim
         preferences: {
           username: '', // Empty string as default
           phoneNumber: '', // Empty string as default
-          security: {
-            passPhrase: trimmedPassphrase,  
-          },
           timezone: 'UTC', // Default timezone
           localStorageEnabled: true, // Default to enabled
           emotionCharacterSet: 'Bubba', // Default character

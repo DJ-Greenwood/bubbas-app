@@ -1,3 +1,4 @@
+// Suggested code may be subject to a license. Learn more: ~LicenseLog:2030364468.
 // src/components/auth/UpdatedUserProfile.tsx
 'use client';
 
@@ -11,9 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useEmotionSettings } from '@/components/context/EmotionSettingsContext';
-import { auth } from '@/utils/firebaseClient';
-import { setUserUID } from '@/utils/encryption';
 import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/utils/firebaseClient'; 
+import { setUserUID } from '@/components/context/AuthContext';
+
 
 // Import emotion icons for preview
 import EmotionIcon from '@/components/emotion/EmotionIcon';
@@ -24,6 +26,7 @@ const UpdatedUserProfile = () => {
   const { emotionIconSize, setEmotionIconSize, characterSet, setCharacterSet } = useEmotionSettings();
   const [activeTab, setActiveTab] = useState('account');
   const [previewSize, setPreviewSize] = useState(64);
+  const [userUid, setUserUID] = useState("");
 
   // Add debug logging for emotion settings
   const [debugInfo, setDebugInfo] = useState({
@@ -314,11 +317,15 @@ const UpdatedUserProfile = () => {
                           onChange={(e) => handleCharacterSetChange(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         >
-                          {Object.entries(EmotionCharacters).map(([key, { displayName }]) => (
-                            <option key={key} value={key}>
-                              {displayName}
-                            </option>
-                          ))}
+                          {Object.entries(EmotionCharacters)
+                            .reduce((uniqueEntries: [string, { displayName: string, fileName: string }][], [key, value]) => {
+                              if (!uniqueEntries.some(([_, { displayName }]) => displayName === value.displayName)) {
+                                uniqueEntries.push([key, value]);
+                              }
+                              return uniqueEntries;
+                            }, [])
+                            .map(([key, { displayName }]) => (
+                              <option key={key} value={key}>{displayName}</option>))}
                         </select>
                       </div>
                       
