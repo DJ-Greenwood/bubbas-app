@@ -24,7 +24,7 @@ export {
 
 // Gemini Function Calls
 export {
-  callGeminiFunction // Corrected export name
+  callGemini // Corrected export name
 } from './geminiFunctions';
 
 // Conversation session functions

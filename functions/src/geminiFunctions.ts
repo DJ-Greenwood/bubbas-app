@@ -1,67 +1,83 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  initializeTransactionUsage,
+  recordTransactionSubcall,
+  saveConversationHistory
+} from './utils/usage'; // adjust path as needed
 
-// Initialize Gemini API
-const genAI = new GoogleGenerativeAI(functions.config().gemini.key);
 
-interface GeminiMessage {
-  role: string;
-  parts: { text: string }[];
-}
+if (!getApps().length) initializeApp();
+const db = getFirestore();
 
-interface GeminiResponse {
-  reply: string;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
+// Secret
+const GEMINI_API_KEY = defineSecret("gemini-key");
 
-export const callGeminiFunction = functions.https.onCall(async (data, context) => {
-  // Ensure the user is authenticated
-  if (!context || !context.auth) { // Add this check
-    throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+// Gemini setup
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
+
+type GeminiMessage = { role: 'user' | 'model', parts: { text: string }[] };
+type GeminiUsage = { promptTokens: number, completionTokens: number, totalTokens: number };
+type GeminiResponse = { content: string, model: string, usage: GeminiUsage, transactionId: string };
+
+// Call Gemini
+export const callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
+  const { messages, userId, saveHistory = false, sessionId, transactionId: inputTransactionId } = request.data;
+  const transactionId = inputTransactionId || uuidv4();
+
+  const auth = request.auth;
+  const effectiveUserId = auth?.uid || null;
+
+  if (userId && userId !== effectiveUserId) {
+    throw new functions.HttpsError('permission-denied', 'UserId mismatch with authenticated user');
   }
 
-  // Now you can safely access data.messages
-  const messages = data.messages;
-
-  if (!messages || !Array.isArray(messages)) {
-    throw new functions.https.HttpsError('invalid-argument', 'The function must be called with a list of messages.');
+  if (!Array.isArray(messages)) {
+    throw new functions.HttpsError('invalid-argument', 'messages must be an array');
   }
 
-  functions.logger.info('Calling Gemini API with messages:', messages);
+  const formattedMessages = messages.map((msg: GeminiMessage) => ({
+    role: msg.role,
+    parts: msg.parts,
+  }));
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    // Convert messages to the format expected by the Gemini SDK
-    const formattedMessages = messages.map(msg => ({
-      role: msg.role,
-      parts: msg.parts.map(part => ({ text: part.text }))
-    }));
+    // Usage tracking init
+    if (effectiveUserId) {
+      await initializeTransactionUsage(effectiveUserId, transactionId, 'chat', 'gemini-pro');
+    }
 
     const result = await model.generateContent({ contents: formattedMessages });
-    const response = result.response;
-    const text = response.text();
+    const text = result.response.text();
+    const usageMeta = result.response.usageMetadata;
 
-    functions.logger.info('Gemini API response received.', { response });
-
-    // The Gemini SDK provides token counts in the response metadata
-    const tokenUsage = result.response.usageMetadata;
     const usage = {
- promptTokens: tokenUsage?.promptTokenCount || 0,
- completionTokens: tokenUsage?.candidatesTokenCount || 0,
- totalTokens: tokenUsage?.totalTokenCount || 0,
-    };
-    return {
-      reply: text,
-      usage: usage,
+      promptTokens: usageMeta?.promptTokenCount || 0,
+      completionTokens: usageMeta?.candidatesTokenCount || 0,
+      totalTokens: usageMeta?.totalTokenCount || 0,
     };
 
-  } catch (error) {
-    functions.logger.error('Error calling Gemini API:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to call Gemini API.', error);
+    if (effectiveUserId) {
+      await recordTransactionSubcall(effectiveUserId, transactionId, 'chat', usage.promptTokens, usage.completionTokens, usage.totalTokens, 'gemini-pro');
+      if (saveHistory && sessionId) {
+        await saveConversationHistory(effectiveUserId, sessionId, messages.at(-1), { role: 'model', parts: [{ text }] }, 'gemini-pro', transactionId);
+      }
+    }
+
+    return {
+      content: text,
+      model: 'gemini-pro',
+      usage,
+      transactionId,
+    };
+  } catch (err: any) {
+    console.error('[callGemini] Error:', err);
+    throw new functions.HttpsError('internal', 'Failed to call Gemini API', err.message);
   }
 });

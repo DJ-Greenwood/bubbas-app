@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateEmotionTrends = exports.updateWordFrequency = exports.generateSessionSummaries = exports.getWordFrequency = exports.getEmotionalTrends = exports.getPrompts = exports.deletePrompt = exports.createOrUpdatePrompt = exports.endConversationSession = exports.processUserMessage = exports.hardDeleteJournalEntry = exports.recoverJournalEntry = exports.softDeleteJournalEntry = exports.getJournalEntries = exports.editJournalEntry = exports.saveJournalEntry = exports.getUserEmotionCharacterSet = exports.updateUserDoc = exports.getUserDoc = exports.processEmotionalChat = exports.continueConversation = exports.startEmotionalSupportSession = exports.analyzeEmotionWithTracking = exports.analyzeEmotion = exports.callOpenAI = void 0;
+exports.updateEmotionTrends = exports.updateWordFrequency = exports.generateSessionSummaries = exports.getWordFrequency = exports.getEmotionalTrends = exports.getPrompts = exports.deletePrompt = exports.createOrUpdatePrompt = exports.endConversationSession = exports.processUserMessage = exports.callGemini = exports.hardDeleteJournalEntry = exports.recoverJournalEntry = exports.softDeleteJournalEntry = exports.getJournalEntries = exports.editJournalEntry = exports.saveJournalEntry = exports.getUserEmotionCharacterSet = exports.updateUserDoc = exports.getUserDoc = void 0;
 // src/index.ts
 const app_1 = require("firebase-admin/app");
 // Initialize Firebase app if not already initialized
@@ -10,14 +10,6 @@ if (!(0, app_1.getApps)().length) {
 }
 // Export all functions
 // OpenAI and conversation functions
-var callOpenAI_1 = require("./callOpenAI");
-Object.defineProperty(exports, "callOpenAI", { enumerable: true, get: function () { return callOpenAI_1.callOpenAI; } });
-Object.defineProperty(exports, "analyzeEmotion", { enumerable: true, get: function () { return callOpenAI_1.analyzeEmotion; } });
-Object.defineProperty(exports, "analyzeEmotionWithTracking", { enumerable: true, get: function () { return callOpenAI_1.analyzeEmotionWithTracking; } });
-Object.defineProperty(exports, "startEmotionalSupportSession", { enumerable: true, get: function () { return callOpenAI_1.startEmotionalSupportSession; } });
-Object.defineProperty(exports, "continueConversation", { enumerable: true, get: function () { return callOpenAI_1.continueConversation; } });
-Object.defineProperty(exports, "processEmotionalChat", { enumerable: true, get: function () { return callOpenAI_1.processEmotionalChat; } });
-// Journal functions
 var JournalFunctions_1 = require("./JournalFunctions");
 Object.defineProperty(exports, "getUserDoc", { enumerable: true, get: function () { return JournalFunctions_1.getUserDoc; } });
 Object.defineProperty(exports, "updateUserDoc", { enumerable: true, get: function () { return JournalFunctions_1.updateUserDoc; } });
@@ -28,6 +20,9 @@ Object.defineProperty(exports, "getJournalEntries", { enumerable: true, get: fun
 Object.defineProperty(exports, "softDeleteJournalEntry", { enumerable: true, get: function () { return JournalFunctions_1.softDeleteJournalEntry; } });
 Object.defineProperty(exports, "recoverJournalEntry", { enumerable: true, get: function () { return JournalFunctions_1.recoverJournalEntry; } });
 Object.defineProperty(exports, "hardDeleteJournalEntry", { enumerable: true, get: function () { return JournalFunctions_1.hardDeleteJournalEntry; } });
+// Gemini Function Calls
+var geminiFunctions_1 = require("./geminiFunctions");
+Object.defineProperty(exports, "callGemini", { enumerable: true, get: function () { return geminiFunctions_1.callGemini; } }); // Corrected export name
 // Conversation session functions
 var conversationSessionFunctions_1 = require("./conversationSessionFunctions");
 Object.defineProperty(exports, "processUserMessage", { enumerable: true, get: function () { return conversationSessionFunctions_1.processUserMessage; } });
