@@ -47,30 +47,45 @@ export const resetConversation = (systemPrompt: string) => {
   conversationHistory = [{ role: "system", content: systemPrompt }];
 };
 
+// Gemini API integration
+const gemini_api_key = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+const gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+
+async function callGemini(messages: { role: string; content: string }[]): Promise<OpenAIResponse> {
+  if (!gemini_api_key) throw new Error("Gemini API key is missing");
+
+  // Gemini expects a different message format
+  const prompt = messages.map(m => `${m.role}: ${m.content}`).join("\n");
+
+  const response = await fetch(`${gemini_api_url}?key=${gemini_api_key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }]
+    })
+  });
+
+  if (!response.ok) throw new Error("Gemini API error: " + response.statusText);
+  const data = await response.json();
+  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
+  // Gemini does not return token usage, so we mock it
+  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  return { reply, usage };
+}
+
 // 💬 Continue conversation with context via Firebase Function
 export const askQuestion = async (question: string): Promise<OpenAIResponse> => {
   console.log("[askQuestion] Received question:", question);
   conversationHistory.push({ role: "user", content: question });
 
   try {
-    console.log("[askQuestion] Sending request to Firebase Callable Function with conversation history:", conversationHistory);
-    const response = await callOpenAI({
-      messages: conversationHistory,
-      model: openai_model,
-      maxTokens: 1000,
-    });
-
-    const data = response.data as OpenAIResponse;
-    const assistantReply = data.reply || "No response generated";
-    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-    console.log("[askQuestion] Received response:", assistantReply, "Tokens:", usage);
-
-    conversationHistory.push({ role: "assistant", content: assistantReply });
-
-    return { reply: assistantReply, usage };
+    console.log("[askQuestion] Sending request to Gemini API with conversation history:", conversationHistory);
+    const { reply, usage } = await callGemini(conversationHistory);
+    console.log("[askQuestion] Received response:", reply, "Tokens:", usage);
+    conversationHistory.push({ role: "assistant", content: reply });
+    return { reply, usage };
   } catch (error) {
-    console.error("[askQuestion] Error while calling Firebase Callable Function:", error);
+    console.error("[askQuestion] Error while calling Gemini API:", error);
     throw error;
   }
 };
@@ -78,24 +93,13 @@ export const askQuestion = async (question: string): Promise<OpenAIResponse> => 
 // ✨ One-off message via Firebase Function
 export const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
   console.log("[generateResponse] Received prompt:", prompt);
-
   try {
-    console.log("[generateResponse] Sending request to Firebase Callable Function with prompt:", prompt);
-    const response = await callOpenAI({
-      messages: [{ role: "user", content: prompt }],
-      model: openai_model,
-      maxTokens: 1000,
-    });
-
-    const data = response.data as OpenAIResponse;
-    const assistantReply = data.reply || "No response generated";
-    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-    console.log("[generateResponse] Received response:", assistantReply, "Tokens:", usage);
-
-    return { reply: assistantReply, usage };
+    console.log("[generateResponse] Sending request to Gemini API with prompt:", prompt);
+    const { reply, usage } = await callGemini([{ role: "user", content: prompt }]);
+    console.log("[generateResponse] Received response:", reply, "Tokens:", usage);
+    return { reply, usage };
   } catch (error) {
-    console.error("[generateResponse] Error while calling Firebase Callable Function:", error);
+    console.error("[generateResponse] Error while calling Gemini API:", error);
     throw error;
   }
 };
@@ -118,28 +122,13 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
   console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
 
   try {
-    // 💬 Start the session with system prompt
     conversationHistory.length = 0; // Reset history
     conversationHistory.push({ role: "system", content: emotionalPrompt });
-
-    const response = await callOpenAI({
-      messages: conversationHistory,
-      model: openai_model,
-      maxTokens: 1000,
-    });
-
-    const data = response.data as OpenAIResponse;
-    const assistantReply = data.reply || "Hi! I'm here whenever you're ready to talk.";
-    const usage = data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-    console.log("[startEmotionalSupportSession] Bubba's first reply:", assistantReply);
-
-    conversationHistory.push({ role: "assistant", content: assistantReply });
-
-    // 🧠 Detect Bubba's emotion based on his reply
-    const emotion = await detectEmotion(assistantReply);
-
-    return { reply: assistantReply, usage, emotion };
+    const { reply, usage } = await callGemini(conversationHistory);
+    console.log("[startEmotionalSupportSession] Bubba's first reply:", reply);
+    conversationHistory.push({ role: "assistant", content: reply });
+    const emotion = await detectEmotion(reply);
+    return { reply, usage, emotion };
   } catch (error) {
     console.error("[startEmotionalSupportSession] Error starting session:", error);
     throw error;
