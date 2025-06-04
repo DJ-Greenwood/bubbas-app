@@ -3,7 +3,7 @@
 // This page allows users to chat with bubba using the Emotion Chat component.
 // It also has a journal feature that displays the user previous chats.
 "use client";
-import UpdatedEmotionChatPersist from "@/components/EmotionChat/EmotionChat";
+import UpdatedEmotionChatPersist from "@/components/EmotionChat/UpdatedEmotionChatPersist";
 import RequireAuth from "@/components/RequiredAuth/RequiredAuth";
 
 
