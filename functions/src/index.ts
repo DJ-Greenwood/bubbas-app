@@ -10,17 +10,7 @@ if (!getApps().length) {
 // Export all functions
 
 // OpenAI and conversation functions
-export { 
-  callOpenAI, 
-  analyzeEmotion,
-  analyzeEmotionWithTracking,
-  startEmotionalSupportSession, 
-  continueConversation,
-  processEmotionalChat
-} from './callOpenAI';
-
-// Journal functions
-export { 
+export {
   getUserDoc,
   updateUserDoc,
   getUserEmotionCharacterSet,
@@ -31,6 +21,11 @@ export {
   recoverJournalEntry,
   hardDeleteJournalEntry
 } from './JournalFunctions';
+
+// Gemini Function Calls
+export {
+  callGeminiFunction // Corrected export name
+} from './geminiFunctions';
 
 // Conversation session functions
 export {

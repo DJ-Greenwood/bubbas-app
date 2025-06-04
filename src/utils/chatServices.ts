@@ -22,7 +22,7 @@ import { getDoc, doc } from 'firebase/firestore'; // Import Firestore methods
 import { Emotion } from '@/components/emotion/emotionAssets';
 import { UserProfileData } from '@/types/UserProfileData'; // Import UserProfileData type
 
-const callOpenAI = httpsCallable(functions, "callOpenAI");
+const callGeminiCloudFunction = httpsCallable(functions, "callGemini"); // Use the new callable function name
 
 // Structure of the expected return from callOpenAI
 interface OpenAIUsage {
@@ -48,29 +48,15 @@ export const resetConversation = (systemPrompt: string) => {
 };
 
 // Gemini API integration
-const gemini_api_key = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-const gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
-
 async function callGemini(messages: { role: string; content: string }[]): Promise<OpenAIResponse> {
-  if (!gemini_api_key) throw new Error("Gemini API key is missing");
-
-  // Gemini expects a different message format
-  const prompt = messages.map(m => `${m.role}: ${m.content}`).join("\n");
-
-  const response = await fetch(`${gemini_api_url}?key=${gemini_api_key}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    })
-  });
-
-  if (!response.ok) throw new Error("Gemini API error: " + response.statusText);
-  const data = await response.json();
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
-  // Gemini does not return token usage, so we mock it
-  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-  return { reply, usage };
+ console.log("[callGemini] Calling Firebase Function for Gemini API...");
+ try {
+ const result = await callGeminiCloudFunction({ messages });
+ console.log("[callGemini] Received response from Firebase Function:", result.data);
+ return result.data as OpenAIResponse; // Assuming the function returns an object matching OpenAIResponse
+  } catch (error) {
+ throw new Error("Error calling Gemini Firebase Function: " + error);
+  }
 }
 
 // 💬 Continue conversation with context via Firebase Function
