@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import * as conversationService from '../utils/conversationService';
+import type { EmotionTrend } from '../utils/conversationService';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
