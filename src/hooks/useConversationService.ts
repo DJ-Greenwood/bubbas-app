@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import * as conversationService from '../utils/conversationService';
+import type { EmotionTrend } from '../utils/conversationService';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -92,7 +93,7 @@ export function useConversationService(): UseConversationServiceReturn {
   const loadConversation = useCallback(async (conversationId: string) => {
     if (!user) {
       setError(new Error('User not authenticated'));
-      return;
+ return; // Return early if user is not authenticated
     }
 
     setLoading(true);
@@ -167,9 +168,11 @@ export function useConversationService(): UseConversationServiceReturn {
     try {
       const trends = await conversationService.getEmotionalTrends(user, period);
       setEmotionalTrends(trends);
+      return trends; // Return the fetched data
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to load emotional trends'));
       console.error('Error loading emotional trends:', err);
+      return []; // Return an empty array on error
     } finally {
       setLoading(false);
     }
