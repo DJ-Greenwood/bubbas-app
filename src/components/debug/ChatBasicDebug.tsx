@@ -19,7 +19,7 @@ const ChatBasicDebug = () => {
                 </p>
             </div>
             <div className="debug-component border border-gray-300 rounded-lg p-4 bg-white shadow">
-                <UpdatedChatBasicService />
+                <UpdatedChatBasicService user={user} passPhrase={null} />
             </div>
         </div>
     );

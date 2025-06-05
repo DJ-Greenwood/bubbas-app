@@ -6,7 +6,7 @@ interface PageContainerProps {
   className?: string;
 }
 
-const PageContainer: React.FC<PageContainerProps> = ({ children, className }) => {
+export const PageContainer: React.FC<PageContainerProps> = ({ children, className }) => {
   return (
     <div className={cn("container mx-auto px-4 sm:px-6 lg:px-8 py-8", className)}>
       {children}
