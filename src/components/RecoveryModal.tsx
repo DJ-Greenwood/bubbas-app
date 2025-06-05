@@ -13,7 +13,7 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
   onSuccess, 
   onCancel 
 }) => {
-  const [method, setMethod] = useState<'passphrase' | 'recoveryCode'>('passphrase');
+  const [method, setMethod] = useState<'encryptionKey' | 'recoveryKey'>('encryptionKey');
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +26,7 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
     try {
       let isValid = false;
       
-      if (method === 'passphrase') {
+      if (method === 'encryptionKey') {
         isValid = await recoverWithPassphrase(input);
       } else {
         isValid = await recoverWithCode(input);
@@ -35,7 +35,7 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
       if (isValid) {
         onSuccess();
       } else {
-        setError(`Invalid ${method === 'passphrase' ? 'passphrase' : 'recovery code'}. Please try again.`);
+        setError(`Invalid ${method === 'encryptionKey' ? 'encryption key' : 'recovery key'}. Please try again.`);
       }
     } catch (err) {
       setError(`Error during recovery. Please try again.`);
@@ -52,40 +52,40 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
       <div className="bg-white rounded-lg p-6 max-w-md w-full">
         <h2 className="text-xl font-bold mb-4">Recover Account Access</h2>
         <p className="mb-4 text-gray-600">
-          Your data is protected with encryption. Please enter your 
-          {method === 'passphrase' ? ' passphrase' : ' recovery code'} to access your data.
+          Your data is protected with encryption. Please enter your
+          {method === 'encryptionKey' ? ' encryption key' : ' recovery key'} to access your data.
         </p>
         
         <div className="flex space-x-2 mb-4">
           <button
             type="button"
-            onClick={() => setMethod('passphrase')}
+            onClick={() => setMethod('encryptionKey')}
             className={`px-3 py-1 rounded ${
-              method === 'passphrase' 
+              method === 'encryptionKey'
                 ? 'bg-blue-500 text-white' 
                 : 'bg-gray-200 text-gray-700'
             }`}
           >
-            Use Passphrase
+            Use Encryption Key
           </button>
           <button
             type="button"
-            onClick={() => setMethod('recoveryCode')}
+            onClick={() => setMethod('recoveryKey')}
             className={`px-3 py-1 rounded ${
-              method === 'recoveryCode' 
+              method === 'recoveryKey'
                 ? 'bg-blue-500 text-white' 
                 : 'bg-gray-200 text-gray-700'
             }`}
           >
-            Use Recovery Code
+            Use Recovery Key
           </button>
         </div>
         
         <form onSubmit={handleSubmit}>
           <input
-            type={method === 'passphrase' ? 'password' : 'text'}
+            type={method === 'encryptionKey' ? 'password' : 'text'}
             className="w-full p-2 border rounded mb-4"
-            placeholder={method === 'passphrase' ? 'Enter your passphrase' : 'Enter your recovery code (e.g., APPLE-BANANA-CHERRY-1234)'}
+            placeholder={method === 'encryptionKey' ? 'Enter your encryption key' : 'Enter your recovery key (e.g., APPLE-BANANA-CHERRY-1234)'}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             required

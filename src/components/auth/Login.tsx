@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from '@/utils/firebaseClient';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { setUserUID, getMasterKey, getPassPhrase } from '@/utils/encryption';
+import { setUserUID, recoverWithPassphrase } from '@/utils/encryption';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,14 +29,14 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [encryptionKey, setEncryptionKey] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
     setStep(0);
     setEmail("");
     setPassword("");
-    setConfirmPassword("");
+    setEncryptionKey("");
     setError(null);
   };
 
@@ -55,22 +55,11 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
       if (user) {
         setUserUID(user.uid);
         
-        // Get user's passphrase
-        const phrase = await getPassPhrase();
-        if (!phrase) {
-          console.warn("No passphrase set. User might need to update preferences.");
-        }
-        
-        // Ensure encryption key is loaded into sessionStorage
-        try {
-          await getMasterKey();
-        } catch (error: any) {
-          if (error.message === "ENCRYPTION_KEY_REQUIRED") {
-            console.warn("🛑 Master key missing. Prompt user for recovery.");
-            // You can redirect to recovery page or show a modal here
-            router.push("/settings/security/recovery");
-            return;
-          }
+        // Recover encryption key with the provided passphrase
+        const ok = await recoverWithPassphrase(encryptionKey);
+        if (!ok) {
+          setError("Invalid encryption key");
+          return;
         }
 
         console.log("✅ User logged in successfully");
@@ -95,6 +84,12 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
     } else if (step === 1) {
       if (!password) {
         setError("Please enter your password");
+        return;
+      }
+      setStep(2);
+    } else if (step === 2) {
+      if (!encryptionKey) {
+        setError("Please enter your encryption key");
         return;
       }
       await handleLogin();
@@ -163,6 +158,20 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
                 />
               </div>
             )}
+
+            {step === 2 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Enter your encryption key</h3>
+                <Input
+                  type="password"
+                  value={encryptionKey}
+                  onChange={(e) => setEncryptionKey(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Encryption key"
+                />
+              </div>
+            )}
           </form>
         </div>
         
@@ -182,7 +191,7 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
             onClick={handleNext}
             type="submit"
           >
-            {step === 1 ? "Let's Go! →" : "Next →"}
+            {step === 2 ? "Let's Go! →" : "Next →"}
           </Button>
         </DialogFooter>
       </DialogContent>

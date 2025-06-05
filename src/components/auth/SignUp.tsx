@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import RecoveryCodeDisplay from '@/components/RecoveryCodeDisplay';
+import RecoveryKeyDisplay from '@/components/RecoveryKeyDisplay';
 
 interface SignUpDialogProps {
   open: boolean;
@@ -33,20 +33,20 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [passphrase, setPassphrase] = useState('');
+  const [encryptionKey, setEncryptionKey] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
 
   const resetForm = () => {
     setStep(0);
     setEmail('');
     setPassword('');
     setConfirmPassword('');
-    setPassphrase('');
+    setEncryptionKey('');
     setTermsAccepted(false);
     setError(null);
-    setRecoveryCode(null);
+    setRecoveryKey(null);
   };
 
   const handleDialogChange = (open: boolean) => {
@@ -59,7 +59,7 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
   const handleSignUp = async () => {
     setError(null);
 
-    if (!email || !password || !passphrase) {
+    if (!email || !password || !encryptionKey) {
       setError('Please fill in all fields.');
       return;
     }
@@ -74,10 +74,10 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
 
       setUserUID(user.uid);
 
-      const result = await setupEncryption(passphrase.trim());
-      setRecoveryCode(result.recoveryCode);
+      const result = await setupEncryption(encryptionKey.trim());
+      setRecoveryKey(result.recoveryCode);
 
-      await createUserProfile(user.uid, email.trim(), passphrase.trim());
+      await createUserProfile(user.uid, email.trim(), encryptionKey.trim());
       setStep(5); // Show recovery code screen
 
     } catch (error: any) {
@@ -101,7 +101,7 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
       if (password !== confirmPassword) return setError('Passwords do not match');
       setStep(3);
     } else if (step === 3) {
-      if (!passphrase || passphrase.length < 8) return setError('Passphrase must be at least 8 characters');
+      if (!encryptionKey || encryptionKey.length < 8) return setError('Encryption key must be at least 8 characters');
       setStep(4);
     } else if (step === 4) {
       if (!termsAccepted) return setError('Please accept the terms');
@@ -133,9 +133,9 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
           </div>
         </DialogHeader>
 
-        {recoveryCode ? (
+        {recoveryKey ? (
           <div className="py-6">
-            <RecoveryCodeDisplay recoveryCode={recoveryCode} onContinue={handleContinue} />
+            <RecoveryKeyDisplay recoveryKey={recoveryKey} onContinue={handleContinue} />
           </div>
         ) : (
           <div className="py-4">
@@ -171,9 +171,9 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
 
               {step === 3 && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium">Create a secret passphrase</h3>
+                  <h3 className="text-sm font-medium">Create an encryption key</h3>
                   <p className="text-sm text-muted-foreground">This will encrypt your data. Make it secure and memorable.</p>
-                  <Input type="text" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} required autoFocus placeholder="Passphrase" />
+                  <Input type="text" value={encryptionKey} onChange={(e) => setEncryptionKey(e.target.value)} required autoFocus placeholder="Encryption key" />
                 </div>
               )}
 
@@ -195,7 +195,7 @@ export const SignUpDialog = ({ open, onOpenChange }: SignUpDialogProps) => {
           </div>
         )}
 
-        {!recoveryCode && (
+        {!recoveryKey && (
           <DialogFooter className="flex justify-between sm:justify-between">
             {step > 0 ? (
               <Button variant="outline" onClick={handleBack} type="button">← Back</Button>
