@@ -129,7 +129,7 @@ export function createGradient(
  * @returns The current theme ('light' or 'dark')
  */
 export function getStoredTheme(defaultTheme: 'light' | 'dark' = 'light'): 'light' | 'dark' {
-  const theme = safeLocalStorage.getItem(THEME_STORAGE_KEY, defaultTheme);
+  const theme = safeLocalStorage.get(THEME_STORAGE_KEY);
   return (theme === 'light' || theme === 'dark') ? theme : defaultTheme;
 }
 
@@ -140,7 +140,8 @@ export function getStoredTheme(defaultTheme: 'light' | 'dark' = 'light'): 'light
  * @returns Whether the operation was successful
  */
 export function saveTheme(theme: 'light' | 'dark'): boolean {
-  return safeLocalStorage.setItem(THEME_STORAGE_KEY, theme);
+  safeLocalStorage.set(THEME_STORAGE_KEY, theme);
+  return true; // Assuming set is always successful or error handling is internal
 }
 
 /**

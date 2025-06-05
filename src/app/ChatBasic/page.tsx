@@ -5,8 +5,10 @@ import UpdatedChatBasic from '@/components/ChatBasic/UpdatedChatBasic';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth'; // Assuming RequireAuth provides AuthContext or similar
 import { useAuth } from '@/hooks/useAuth'; // Assuming useAuth provides user and passPhrase
 
+const { user, passPhrase } = useAuth(); // Get user and passPhrase from auth context
+
 export default function EmotionChatPage() {
-  const { user, passPhrase } = useAuth(); // Get user and passPhrase from auth context
+  const { user } = useAuth(); // Get user from auth context
   return (
     <RequireAuth>
       <div className="container mx-auto py-8">

@@ -1,28 +1,33 @@
-// src/components/Journal/ImprovedJournalPage.tsx
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { JournalEntry } from '@/types/JournalEntry';
-import JournalCard from '../JournalChat/Journal/JournalCard';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
-import { AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { stopSpeaking } from '@/utils/tts';
-import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/journalService';
+import {
+  getJournalEntries,
+  editJournalEntry,
+  softDeleteJournalEntry,
+} from '@/utils/journalService';
 import { useToast } from '@/hooks/use-toast';
+
+import { JournalEntry } from '@/types/JournalEntry';
+import JournalCard from '../JournalChat/Journal/JournalCard';
+
+import { AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 
 import FlexRow from '@/components/ui/FlexRow';
 import { GridContainer } from '../ui/GridContainer';
+import { PageContainer } from '@/components/ui/PageContainer'; // ✅ ADDED
+import { SectionContainer } from '@/components/ui/SectionContainer'; // ✅ ADDED
 
 // UI components
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Define a type that extends JournalEntry to include decrypted fields
 type DecryptedJournalEntry = JournalEntry & {
   userText?: string;
   bubbaReply?: string;
@@ -37,15 +42,13 @@ const ImprovedJournalPage = () => {
   const { toast } = useToast();
   const entriesLoaded = useRef(false);
 
-  // Listen for auth state and set user
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        setUserUID(firebaseUser.uid); // Set user UID for encryption
+        setUserUID(firebaseUser.uid);
       } else {
         setUser(null);
-        // Redirect to login if no user
         router.push('/auth');
       }
     });
@@ -55,7 +58,6 @@ const ImprovedJournalPage = () => {
     };
   }, [router]);
 
-  // Load journal entries when user is available
   useEffect(() => {
     if (user && !entriesLoaded.current) {
       loadJournalEntries();
@@ -63,37 +65,23 @@ const ImprovedJournalPage = () => {
   }, [user]);
 
   const loadJournalEntries = async () => {
-    if (!user) {
-      return;
-    }
-    
+    if (!user) return;
     setLoading(true);
     setError(null);
-    
     try {
       const loaded = await getJournalEntries('active', user.uid);
-      
-      if (loaded.length === 0) {
-        setEntries([]);
-        entriesLoaded.current = true;
-        setLoading(false);
-        return;
-      }
-      
-      // Sort entries by timestamp descending (newest first)
-      const sortedEntries = [...loaded].sort((a, b) => {
-        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-      });
-      
+      const sortedEntries = [...loaded].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
       setEntries(sortedEntries);
       entriesLoaded.current = true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setError('Failed to load journal entries: ' + errorMessage);
       toast({
-        title: "Loading Error",
-        description: "Failed to load your journal entries. Please try again.",
-        variant: "destructive"
+        title: 'Loading Error',
+        description: 'Failed to load your journal entries. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -102,77 +90,54 @@ const ImprovedJournalPage = () => {
 
   const handleSoftDelete = async (timestamp: string) => {
     try {
-      if (!user) {
-        setError('User not authenticated.');
-        return;
-      }
-      
-      // First update UI optimistically
+      if (!user) throw new Error('User not authenticated.');
       setEntries((prev) => prev.filter((entry) => entry.timestamp !== timestamp));
-      
-      // Then perform the actual delete operation
       await softDeleteJournalEntry(timestamp, user.uid);
-      
-      toast({ 
-        title: "Entry Moved to Trash", 
-        description: "Journal entry has been moved to the trash." 
+      toast({
+        title: 'Entry Moved to Trash',
+        description: 'Journal entry has been moved to the trash.',
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setError('Failed to delete entry: ' + errorMessage);
-      
-      // Reload entries on error to reset state
       entriesLoaded.current = false;
       loadJournalEntries();
-      
-      toast({ 
-        title: "Error", 
-        description: "Failed to move entry to trash.", 
-        variant: "destructive" 
+      toast({
+        title: 'Error',
+        description: 'Failed to move entry to trash.',
+        variant: 'destructive',
       });
     }
   };
 
   const handleEdit = async (timestamp: string, newText: string) => {
     try {
-      if (!user) {
-        setError('User not authenticated.');
-        return;
-      }
-      
-      // Perform the edit operation
+      if (!user) throw new Error('User not authenticated.');
       await editJournalEntry(timestamp, newText, user.uid);
-      
-      // Reload entries to show the updated content
       entriesLoaded.current = false;
       await loadJournalEntries();
-      
-      toast({ 
-        title: "Entry Updated", 
-        description: "Your journal entry has been updated successfully." 
+      toast({
+        title: 'Entry Updated',
+        description: 'Your journal entry has been updated successfully.',
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setError('Failed to edit entry: ' + errorMessage);
-      
-      toast({ 
-        title: "Error", 
-        description: "Failed to update your journal entry.", 
-        variant: "destructive" 
+      toast({
+        title: 'Error',
+        description: 'Failed to update your journal entry.',
+        variant: 'destructive',
       });
     }
   };
 
-  const goToTrash = () => {
-    router.push('/Journal/trash');
-  };
+  const goToTrash = () => router.push('/Journal/trash');
 
   const handleRefresh = () => {
     entriesLoaded.current = false;
     loadJournalEntries();
   };
 
-  // Loading skeletons
   if (loading && entries.length === 0) {
     return (
       <PageContainer>
@@ -183,7 +148,6 @@ const ImprovedJournalPage = () => {
               <Skeleton className="h-10 w-24" />
             </div>
           </FlexRow>
-          
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="w-full h-40 rounded-lg mb-4" />
           ))}
@@ -191,7 +155,7 @@ const ImprovedJournalPage = () => {
       </PageContainer>
     );
   }
-  
+
   return (
     <PageContainer>
       <SectionContainer>
@@ -228,7 +192,6 @@ const ImprovedJournalPage = () => {
           </div>
         </FlexRow>
 
-        {/* Show updating indicator when refreshing with existing entries */}
         {loading && entries.length > 0 && (
           <Alert className="mb-6">
             <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
@@ -237,21 +200,15 @@ const ImprovedJournalPage = () => {
           </Alert>
         )}
 
-        {/* No entries state */}
         {!loading && entries.length === 0 ? (
-          <div> {/* Using a simple div as a placeholder for DashboardContainer */}
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                You don't have any journal entries yet. Start chatting with Bubba to create some!
-              </p>
-              <Button
-                onClick={() => router.push('/EmotionChat')}
-                className="mt-2"
-              >
-                Start New Chat
-              </Button>
-            </div>
-          </DashboardContainer>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground mb-4">
+              You don't have any journal entries yet. Start chatting with Bubba to create some!
+            </p>
+            <Button onClick={() => router.push('/EmotionChat')} className="mt-2">
+              Start New Chat
+            </Button>
+          </div>
         ) : (
           <GridContainer className="grid-cols-1">
             {entries.map((entry) => (
