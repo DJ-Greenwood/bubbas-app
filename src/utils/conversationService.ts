@@ -25,7 +25,7 @@ interface ConversationSession {
   summary?: string;
 }
 
-interface EmotionTrend {
+export interface EmotionTrend {
   date: string;
   emotions: Record<string, number>;
   totalCount: number;

@@ -1,30 +1,30 @@
-// src/components/RecoveryCodeDisplay.tsx
+// src/components/RecoveryKeyDisplay.tsx
 import React, { useState } from 'react';
 
-interface RecoveryCodeDisplayProps {
-  recoveryCode: string;
+interface RecoveryKeyDisplayProps {
+  recoveryKey: string;
   onContinue: () => void;
 }
 
-const RecoveryCodeDisplay: React.FC<RecoveryCodeDisplayProps> = ({ 
-  recoveryCode,
-  onContinue
+const RecoveryKeyDisplay: React.FC<RecoveryKeyDisplayProps> = ({
+  recoveryKey,
+  onContinue,
 }) => {
   const [confirmed, setConfirmed] = useState(false);
   
   return (
     <div className="bg-white rounded-lg p-6 max-w-md w-full">
-      <h2 className="text-xl font-bold mb-4">Save Your Recovery Code</h2>
+      <h2 className="text-xl font-bold mb-4">Save Your Recovery Key</h2>
       
       <p className="mb-4 text-gray-600">
-        Your data is protected with end-to-end encryption. If you ever forget your 
-        passphrase, you can use this recovery code to access your data.
+        Your data is protected with end-to-end encryption. If you ever forget your
+        encryption key, you can use this recovery key to access your data.
       </p>
       
       <div className="bg-yellow-50 border border-yellow-400 p-4 rounded-md mb-6">
         <p className="font-bold text-yellow-800 mb-2">IMPORTANT:</p>
         <p className="text-yellow-800 mb-2">
-          Write down this code and keep it in a safe place. We cannot reset or recover 
+          Write down this key and keep it in a safe place. We cannot reset or recover
           your data without it.
         </p>
         <p className="text-yellow-800">
@@ -33,7 +33,7 @@ const RecoveryCodeDisplay: React.FC<RecoveryCodeDisplayProps> = ({
       </div>
       
       <div className="bg-gray-100 p-3 rounded-md text-center mb-6">
-        <p className="font-mono text-xl tracking-wider select-all">{recoveryCode}</p>
+        <p className="font-mono text-xl tracking-wider select-all">{recoveryKey}</p>
       </div>
       
       <div className="flex items-center mb-6">
@@ -45,7 +45,7 @@ const RecoveryCodeDisplay: React.FC<RecoveryCodeDisplayProps> = ({
           className="mr-2"
         />
         <label htmlFor="confirm-checkbox">
-          I have saved my recovery code in a safe place
+          I have saved my recovery key in a safe place
         </label>
       </div>
       
@@ -66,4 +66,4 @@ const RecoveryCodeDisplay: React.FC<RecoveryCodeDisplayProps> = ({
   );
 };
 
-export default RecoveryCodeDisplay;
+export default RecoveryKeyDisplay;
