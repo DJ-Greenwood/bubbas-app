@@ -61,8 +61,8 @@ const EmotionTrendsChart: React.FC<EmotionTrendsChartProps> = ({
       setError(null);
       
       try {
-        const trendsData = await loadEmotionalTrends(period);
-        setTrends(trendsData);
+        const fetchedTrendsData = await loadEmotionalTrends(period);
+        setTrends(fetchedTrendsData);
       } catch (err) {
         console.error('Error loading emotional trends:', err);
         setError('Failed to load emotion data');

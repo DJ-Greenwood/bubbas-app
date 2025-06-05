@@ -21,7 +21,7 @@ interface UseConversationServiceReturn {
   loadConversations: () => Promise<{ id: string; data: any }[]>;
   analyzeEmotion: (text: string) => Promise<string>;
   emotionalTrends: any[];
-  loadEmotionalTrends: (period?: 'day' | 'month' | 'all') => Promise<void>;
+  loadEmotionalTrends: (period?: 'day' | 'month' | 'all') => Promise<EmotionTrend[]>;
   loadWordFrequency: (options?: { limit?: number; emotion?: string; minCount?: number }) => Promise<any[]>;
 }
 
@@ -158,7 +158,7 @@ export function useConversationService(): UseConversationServiceReturn {
   const loadEmotionalTrends = useCallback(async (period: 'day' | 'month' | 'all' = 'all') => {
     if (!user) {
       setError(new Error('User not authenticated'));
-      return;
+      return []; // Return an empty array if user is not authenticated
     }
 
     setLoading(true);

@@ -14,12 +14,6 @@ import { stopSpeaking } from '@/utils/tts';
 import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/journalService';
 import { useToast } from '@/hooks/use-toast';
 
-// Import new container components
-import { 
-  PageContainer, 
-  SectionContainer, 
-  DashboardContainer 
-} from '@/components/ui/containers';
 import FlexRow from '@/components/ui/FlexRow';
 import { GridContainer } from '../ui/GridContainer';
 
@@ -245,7 +239,7 @@ const ImprovedJournalPage = () => {
 
         {/* No entries state */}
         {!loading && entries.length === 0 ? (
-          <DashboardContainer>
+          <div> {/* Using a simple div as a placeholder for DashboardContainer */}
             <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">
                 You don't have any journal entries yet. Start chatting with Bubba to create some!

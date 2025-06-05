@@ -3,6 +3,7 @@
 // This page allows users to view and edit their profile information.
 
 import UserProfile from '@/components/auth/UserProfile';
+import UpdatedUserProfile from '@/components/auth/UpdatedUserProfile';
 import RequireAuth from '@/components/RequiredAuth/RequiredAuth';
 
 const ProfilePage = () => {
@@ -60,7 +61,7 @@ const ProfilePage = () => {
   return (
     <RequireAuth>
       <div>
-          <UserProfile user={userData} />
+          <UpdatedUserProfile />
       </div>
     </RequireAuth>
   );

@@ -81,3 +81,64 @@ export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
 }
+
+/**
+ * Safely access localStorage, checking for environment availability.
+ */
+const isLocalStorageAvailable = typeof window !== 'undefined' && window.localStorage;
+
+export const safeLocalStorage = {
+  /**
+   * Get an item from localStorage.
+   * @param key The key of the item to retrieve.
+   * @returns The item as a string, or null if not found or localStorage is unavailable.
+   */
+  get(key: string): string | null {
+    if (!isLocalStorageAvailable) return null;
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.error("Error getting item from localStorage:", e);
+      return null;
+    }
+  },
+
+  /**
+   * Set an item in localStorage.
+   * @param key The key of the item.
+   * @param value The value of the item (will be converted to string).
+   */
+  set(key: string, value: string): void {
+    if (!isLocalStorageAvailable) return;
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.error("Error setting item in localStorage:", e);
+    }
+  },
+
+  /**
+   * Remove an item from localStorage.
+   * @param key The key of the item to remove.
+   */
+  remove(key: string): void {
+    if (!isLocalStorageAvailable) return;
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.error("Error removing item from localStorage:", e);
+    }
+  },
+
+  /**
+   * Clear all items from localStorage.
+   */
+  clear(): void {
+    if (!isLocalStorageAvailable) return;
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.error("Error clearing localStorage:", e);
+    }
+  },
+};
