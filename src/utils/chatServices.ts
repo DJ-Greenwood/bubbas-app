@@ -47,74 +47,65 @@ export const resetConversation = (systemPrompt: string) => {
   conversationHistory = [{ role: "system", content: systemPrompt }];
 };
 
-// Gemini API integration
+// Use only the Firebase Callable Function for Gemini
 async function callGemini(messages: { role: string; content: string }[]): Promise<OpenAIResponse> {
- console.log("[callGemini] Calling Firebase Function for Gemini API...");
- try {
- const result = await callGeminiCloudFunction({ messages });
- console.log("[callGemini] Received response from Firebase Function:", result.data);
- return result.data as OpenAIResponse; // Assuming the function returns an object matching OpenAIResponse
+  console.log("[callGemini] Calling Firebase Function for Gemini API...");
+  try {
+    const result = await callGeminiCloudFunction({ messages });
+    // Safely extract reply and usage from result.data
+    const data = result.data as any;
+    return {
+      reply: data.reply || data.content || "No response generated",
+      usage: data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    };
   } catch (error) {
- throw new Error("Error calling Gemini Firebase Function: " + error);
+    throw new Error("Error calling Gemini Firebase Function: " + error);
   }
 }
 
-// 💬 Continue conversation with context via Firebase Function
 export const askQuestion = async (question: string): Promise<OpenAIResponse> => {
   console.log("[askQuestion] Received question:", question);
   conversationHistory.push({ role: "user", content: question });
-
   try {
-    console.log("[askQuestion] Sending request to Gemini API with conversation history:", conversationHistory);
+    // Use the original conversationHistory format for callGemini
+    console.log("[askQuestion] Calling Gemini Cloud Function with conversation history:", conversationHistory);
     const { reply, usage } = await callGemini(conversationHistory);
     console.log("[askQuestion] Received response:", reply, "Tokens:", usage);
     conversationHistory.push({ role: "assistant", content: reply });
     return { reply, usage };
   } catch (error) {
-    console.error("[askQuestion] Error while calling Gemini API:", error);
+    console.error("[askQuestion] Error while calling Gemini Cloud Function:", error);
     throw error;
   }
 };
 
-// ✨ One-off message via Firebase Function
 export const generateResponse = async (prompt: string): Promise<OpenAIResponse> => {
   console.log("[generateResponse] Received prompt:", prompt);
   try {
-    console.log("[generateResponse] Sending request to Gemini API with prompt:", prompt);
-    const { reply, usage } = await callGemini([{ role: "user", content: prompt }]);
+    // Use the original message format for callGemini
+    const messages = [{ role: 'user', content: prompt }];
+    console.log("[generateResponse] Calling Gemini Cloud Function with messages:", messages);
+    const { reply, usage } = await callGemini(messages);
     console.log("[generateResponse] Received response:", reply, "Tokens:", usage);
     return { reply, usage };
   } catch (error) {
-    console.error("[generateResponse] Error while calling Gemini API:", error);
+    console.error("[generateResponse] Error while calling Gemini Cloud Function:", error);
     throw error;
   }
 };
 
-// 🧸 Start emotional support session with a custom system prompt and return Bubba's first message
-export const startEmotionalSupportSession = async (): Promise<{ reply: string; usage: OpenAIUsage; emotion: Emotion }> => {
-  const emotionalPrompt = `
-You are Bubbas, a compassionate AI companion. Your goal is to help the user reflect on their day, process emotions, and feel supported.
-Ask thoughtful, open-ended questions like:
-
-- "How did your day go?"
-- "What’s been on your mind lately?"
-- "Any plans for the weekend or time off?"
-- "What’s something you’re looking forward to?"
-- "Do you want to talk about anything that’s bothering you?"
-
-Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
-  `.trim();
-
-  console.log("[startEmotionalSupportSession] Starting emotional support session with prompt:", emotionalPrompt);
-
+export const startEmotionalSupportSession = async (): Promise<{ reply: string; usage: OpenAIUsage }> => {
   try {
-    conversationHistory.length = 0; // Reset history
-    conversationHistory.push({ role: "system", content: emotionalPrompt });
-    const { reply, usage } = await callGemini(conversationHistory);
-    console.log("[startEmotionalSupportSession] Bubba's first reply:", reply);
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+    const initialPrompt = "I need emotional support.";
+    // Use the original message format for callGemini
+    const messages = [{ role: 'user', content: initialPrompt }];
+    const { reply, usage } = await callGemini(messages);
+    conversationHistory.length = 0;
+    conversationHistory.push({ role: "system", content: reply });
     conversationHistory.push({ role: "assistant", content: reply });
-    const emotion = await detectEmotion(reply);
-    return { reply, usage, emotion };
+    return { reply, usage };
   } catch (error) {
     console.error("[startEmotionalSupportSession] Error starting session:", error);
     throw error;

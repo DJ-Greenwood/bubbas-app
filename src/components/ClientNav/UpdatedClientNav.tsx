@@ -122,6 +122,14 @@ export default function ClientNav() {
             </TabsTrigger>
             
             <TabsTrigger
+            value="/geminiChat"
+            className={`min-w-[80px] text-center ${isActive('/geminiChat') ? 'bg-primary text-primary-foreground' : ''}`}
+            asChild
+            >
+            <Link href="/geminiChat">Gemini Chat</Link>
+            </TabsTrigger>
+            
+            <TabsTrigger
             value="signout"
             className="min-w-[80px] text-center text-red-600 hover:text-red-700"
             onClick={() => {
