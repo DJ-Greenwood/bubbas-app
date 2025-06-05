@@ -1,4 +1,3 @@
-// Gemini-based Firebase Function placeholder
 import * as functions from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -18,11 +17,10 @@ const GEMINI_API_KEY = defineSecret("gemini-key");
 
 export const continueConversationGemini = functions.onCall(
   { secrets: [GEMINI_API_KEY] },
-  async (data, context) => {
-    const { sessionId, message, userId, transactionId: providedTransactionId } = data;
+  async (request) => {
+    const { sessionId, message, userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || uuidv4();
-
-    const auth = context.auth;
+    const auth = request.auth;
     const effectiveUserId = auth?.uid || null;
 
     if (!sessionId || !message) {
@@ -34,10 +32,10 @@ export const continueConversationGemini = functions.onCall(
     }
 
     try {
+      // ✅ safe usage of secret at runtime
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-      // Rebuild conversation history
       let conversationHistory: { role: string; parts: { text: string }[] }[] = [
         {
           role: 'system',

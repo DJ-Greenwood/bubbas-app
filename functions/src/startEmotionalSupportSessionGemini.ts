@@ -1,11 +1,14 @@
-// Gemini-based Firebase Function placeholder
 import * as functions from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { v4 as uuidv4 } from 'uuid';
-import { initializeTransactionUsage, recordTransactionSubcall, saveConversationHistory } from './utils/usage';
+import {
+  initializeTransactionUsage,
+  recordTransactionSubcall,
+  saveConversationHistory
+} from './utils/usage';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -14,14 +17,14 @@ const GEMINI_API_KEY = defineSecret("gemini-key");
 
 export const startEmotionalSupportSessionGemini = functions.onCall(
   { secrets: [GEMINI_API_KEY] },
-  async (data, context) => {
-    const { userId, transactionId: providedTransactionId } = data;
+  async (request) => {
+    const { userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || uuidv4();
 
-    const auth = context.auth;
+    const auth = request.auth;
     const effectiveUserId = auth?.uid || null;
 
-    if (userId && userId !== effectiveUserId && effectiveUserId !== 'system') { // Added system check for potential background tasks
+    if (userId && userId !== effectiveUserId && effectiveUserId !== 'system') {
       throw new functions.HttpsError('permission-denied', 'UserId mismatch with authenticated user');
     }
 
@@ -36,11 +39,10 @@ Ask thoughtful, open-ended questions like:
 Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
 `.trim();
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-   
     try {
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
+      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
       if (effectiveUserId) {
         await initializeTransactionUsage(effectiveUserId, transactionId, 'emotional_support', 'gemini-pro');
       }
@@ -56,7 +58,6 @@ Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendl
 
       const reply = result.response.text().trim();
       const usage = result.response.usageMetadata;
-
       const sessionId = `emotional-support-${Date.now()}`;
 
       if (effectiveUserId) {

@@ -34,7 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.startEmotionalSupportSessionGemini = void 0;
-// Gemini-based Firebase Function placeholder
 const functions = __importStar(require("firebase-functions/v2/https"));
 const params_1 = require("firebase-functions/params");
 const generative_ai_1 = require("@google/generative-ai");
@@ -46,13 +45,12 @@ if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key");
-const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
 exports.startEmotionalSupportSessionGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
     const { userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || (0, uuid_1.v4)();
     const auth = request.auth;
     const effectiveUserId = auth?.uid || null;
-    if (userId && userId !== effectiveUserId) {
+    if (userId && userId !== effectiveUserId && effectiveUserId !== 'system') {
         throw new functions.HttpsError('permission-denied', 'UserId mismatch with authenticated user');
     }
     const emotionalPrompt = `
@@ -65,8 +63,9 @@ Ask thoughtful, open-ended questions like:
 - "Do you want to talk about anything that's bothering you?"
 Be supportive, non-judgmental, and empathetic. Keep your tone gentle and friendly.
 `.trim();
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     try {
+        const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
+        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
         if (effectiveUserId) {
             await (0, usage_1.initializeTransactionUsage)(effectiveUserId, transactionId, 'emotional_support', 'gemini-pro');
         }

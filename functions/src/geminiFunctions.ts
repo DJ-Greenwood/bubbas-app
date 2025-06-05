@@ -14,11 +14,10 @@ import {
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-// Secret
-const GEMINI_API_KEY = defineSecret("gemini-key");
-
-// Gemini setup
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
+// Secret APIKEY 
+const GEMINI_API_KEY = defineSecret("gemini-key"); // Define without .value() here
+// Secret Model
+const GEMINI_MODEL = defineSecret("gemini-model"); // Define without .value() here
 
 type GeminiMessage = { role: 'user' | 'model', parts: { text: string }[] };
 type GeminiUsage = { promptTokens: number, completionTokens: number, totalTokens: number };
@@ -26,7 +25,7 @@ type GeminiResponse = { content: string, model: string, usage: GeminiUsage, tran
 
 // Call Gemini
 export const callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
-  const { messages, userId, saveHistory = false, sessionId, transactionId: inputTransactionId } = request.data;
+  const { messages, userId, saveHistory = false, sessionId, transactionId: inputTransactionId } = request.data; // Access data here
   const transactionId = inputTransactionId || uuidv4();
 
   const auth = request.auth;
@@ -45,12 +44,15 @@ export const callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async 
     parts: msg.parts,
   }));
 
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  // Gemini setup - Initialize *inside* the function
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
+  const modelName = GEMINI_MODEL.value(); // Access model name here
+  const model = genAI.getGenerativeModel({ model: modelName || 'gemini-pro' });
 
-    // Usage tracking init
+  try {
+    // Usage tracking init - use modelName here
     if (effectiveUserId) {
-      await initializeTransactionUsage(effectiveUserId, transactionId, 'chat', 'gemini-pro');
+      await initializeTransactionUsage(effectiveUserId, transactionId, 'chat', GEMINI_MODEL.value());
     }
 
     const result = await model.generateContent({ contents: formattedMessages });
@@ -72,7 +74,7 @@ export const callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async 
 
     return {
       content: text,
-      model: 'gemini-pro',
+      model: modelName, // Return the actual model name
       usage,
       transactionId,
     };

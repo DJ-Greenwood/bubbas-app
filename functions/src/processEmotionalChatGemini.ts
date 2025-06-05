@@ -1,4 +1,3 @@
-// Gemini-based Firebase Function placeholder
 import * as functions from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -18,14 +17,14 @@ const GEMINI_API_KEY = defineSecret("gemini-key");
 
 export const processEmotionalChatGemini = functions.onCall(
   { secrets: [GEMINI_API_KEY] },
-  async (data, context) => {
+  async (request) => {
     const {
       message,
       sessionId: providedSessionId,
       userId,
       analyzeEmotion = true,
       transactionId: providedTransactionId
-    } = data;
+    } = request.data;
 
     const transactionId = providedTransactionId || uuidv4();
     const auth = request.auth;
@@ -39,9 +38,8 @@ export const processEmotionalChatGemini = functions.onCall(
       throw new functions.HttpsError('invalid-argument', 'Message is required');
     }
 
-    // Initialize genAI and models inside the function
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Use a specific model here
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     let sessionId = providedSessionId || `emotional-support-${Date.now()}`;
     let conversationHistory: { role: string; parts: { text: string }[] }[] = [];
@@ -85,8 +83,8 @@ export const processEmotionalChatGemini = functions.onCall(
       let emotionData = null;
 
       if (analyzeEmotion) {
-        // Initialize emotionModel inside the emotion analysis block if only used here
-        const emotionModel = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Use a specific model here
+        const emotionModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
         const emotionResult = await emotionModel.generateContent({
           contents: [
             {

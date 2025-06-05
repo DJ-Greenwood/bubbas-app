@@ -34,7 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processEmotionalChatGemini = void 0;
-// Gemini-based Firebase Function placeholder
 const functions = __importStar(require("firebase-functions/v2/https"));
 const params_1 = require("firebase-functions/params");
 const generative_ai_1 = require("@google/generative-ai");
@@ -46,7 +45,6 @@ if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key");
-const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
 exports.processEmotionalChatGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
     const { message, sessionId: providedSessionId, userId, analyzeEmotion = true, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || (0, uuid_1.v4)();
@@ -58,8 +56,8 @@ exports.processEmotionalChatGemini = functions.onCall({ secrets: [GEMINI_API_KEY
     if (!message) {
         throw new functions.HttpsError('invalid-argument', 'Message is required');
     }
+    const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    const emotionModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
     let sessionId = providedSessionId || `emotional-support-${Date.now()}`;
     let conversationHistory = [];
     try {
@@ -92,6 +90,7 @@ exports.processEmotionalChatGemini = functions.onCall({ secrets: [GEMINI_API_KEY
         conversationHistory.push({ role: 'user', parts: [{ text: message }] });
         let emotionData = null;
         if (analyzeEmotion) {
+            const emotionModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
             const emotionResult = await emotionModel.generateContent({
                 contents: [
                     {

@@ -9,29 +9,10 @@ if (!getApps().length) {
 
 // Export all functions
 
-// OpenAI and conversation functions
-export {
-  getUserDoc,
-  updateUserDoc,
-  getUserEmotionCharacterSet,
-  saveJournalEntry,
-  editJournalEntry,
-  getJournalEntries,
-  softDeleteJournalEntry,
-  recoverJournalEntry,
-  hardDeleteJournalEntry
-} from './JournalFunctions';
-
 // Gemini Function Calls
 export {
   callGemini // Corrected export name
 } from './geminiFunctions';
-
-// Conversation session functions
-export {
-  processUserMessage,
-  endConversationSession
-} from './conversationSessionFunctions';
 
 // Admin prompt management functions
 export {
@@ -39,19 +20,6 @@ export {
   deletePrompt,
   getPrompts
 } from './adminPromptFunctions';
-
-// Analytics functions
-export {
-  getEmotionalTrends,
-  getWordFrequency,
-  generateSessionSummaries
-} from './analyticsService';
-
-// Firestore triggers
-export {
-  updateWordFrequency,
-  updateEmotionTrends
-} from './analyticsService';
 
 // Initialize collections and defaults on deployment
 import { initializeDefaultPrompts, ensureAdminCollection } from './adminPromptFunctions';

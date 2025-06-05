@@ -34,7 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.continueConversationGemini = void 0;
-// Gemini-based Firebase Function placeholder
 const functions = __importStar(require("firebase-functions/v2/https"));
 const params_1 = require("firebase-functions/params");
 const generative_ai_1 = require("@google/generative-ai");
@@ -46,7 +45,6 @@ if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key");
-const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
 exports.continueConversationGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
     const { sessionId, message, userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || (0, uuid_1.v4)();
@@ -59,8 +57,9 @@ exports.continueConversationGemini = functions.onCall({ secrets: [GEMINI_API_KEY
         throw new functions.HttpsError('permission-denied', 'UserId mismatch with authenticated user');
     }
     try {
+        // ✅ safe usage of secret at runtime
+        const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-        // Rebuild conversation history
         let conversationHistory = [
             {
                 role: 'system',

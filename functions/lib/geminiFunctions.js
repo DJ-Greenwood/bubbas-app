@@ -44,13 +44,13 @@ const usage_1 = require("./utils/usage"); // adjust path as needed
 if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
-// Secret
-const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key");
-// Gemini setup
-const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
+// Secret APIKEY 
+const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key"); // Define without .value() here
+// Secret Model
+const GEMINI_MODEL = (0, params_1.defineSecret)("gemini-model"); // Define without .value() here
 // Call Gemini
 exports.callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
-    const { messages, userId, saveHistory = false, sessionId, transactionId: inputTransactionId } = request.data;
+    const { messages, userId, saveHistory = false, sessionId, transactionId: inputTransactionId } = request.data; // Access data here
     const transactionId = inputTransactionId || (0, uuid_1.v4)();
     const auth = request.auth;
     const effectiveUserId = auth?.uid || null;
@@ -64,11 +64,14 @@ exports.callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (requ
         role: msg.role,
         parts: msg.parts,
     }));
+    // Gemini setup - Initialize *inside* the function
+    const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
+    const modelName = GEMINI_MODEL.value(); // Access model name here
+    const model = genAI.getGenerativeModel({ model: modelName || 'gemini-pro' });
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-        // Usage tracking init
+        // Usage tracking init - use modelName here
         if (effectiveUserId) {
-            await (0, usage_1.initializeTransactionUsage)(effectiveUserId, transactionId, 'chat', 'gemini-pro');
+            await (0, usage_1.initializeTransactionUsage)(effectiveUserId, transactionId, 'chat', GEMINI_MODEL.value());
         }
         const result = await model.generateContent({ contents: formattedMessages });
         const text = result.response.text();
@@ -86,7 +89,7 @@ exports.callGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (requ
         }
         return {
             content: text,
-            model: 'gemini-pro',
+            model: modelName, // Return the actual model name
             usage,
             transactionId,
         };

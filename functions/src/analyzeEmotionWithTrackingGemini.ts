@@ -1,4 +1,3 @@
-// Gemini-based Firebase Function placeholder
 import * as functions from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -7,9 +6,17 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeTransactionUsage, recordTransactionSubcall } from './utils/usage';
 
+// Safe Firebase init
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
+// Secret reference (safe to define at module level)
+const GEMINI_API_KEY = defineSecret('gemini-key');
+
+// Actual callable function
+export const analyzeEmotionWithTrackingGemini = functions.onCall(
+  { secrets: [GEMINI_API_KEY] },
+  async (request) => {
     const { text, userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || uuidv4();
 
@@ -25,6 +32,7 @@ const db = getFirestore();
     }
 
     try {
+      // ✅ Only access the secret at runtime
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
@@ -80,11 +88,11 @@ Text: "${text}"`,
           transactionId,
         };
       } catch (parseError) {
-        console.warn("[analyzeEmotionWithTrackingGemini] Failed to parse JSON:", rawText);
+        console.warn('[analyzeEmotionWithTrackingGemini] Failed to parse JSON:', rawText);
         throw new functions.HttpsError('internal', 'Failed to parse emotion analysis result');
       }
     } catch (error) {
-      console.error("[analyzeEmotionWithTrackingGemini] Error:", error);
+      console.error('[analyzeEmotionWithTrackingGemini] Error:', error);
       throw new functions.HttpsError('internal', 'Failed to analyze emotion');
     }
   }

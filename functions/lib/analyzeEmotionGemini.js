@@ -46,7 +46,6 @@ if (!(0, app_1.getApps)().length)
     (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const GEMINI_API_KEY = (0, params_1.defineSecret)("gemini-key");
-const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
 exports.analyzeEmotionGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, async (request) => {
     const { text, userId, transactionId: providedTransactionId } = request.data;
     const transactionId = providedTransactionId || (0, uuid_1.v4)();
@@ -59,6 +58,8 @@ exports.analyzeEmotionGemini = functions.onCall({ secrets: [GEMINI_API_KEY] }, a
         throw new functions.HttpsError('invalid-argument', 'Text is required');
     }
     try {
+        // Initialize genAI inside the function
+        const genAI = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY.value());
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
         if (effectiveUserId) {
             await (0, usage_1.initializeTransactionUsage)(effectiveUserId, transactionId, 'emotion_analysis', 'gemini-pro');
