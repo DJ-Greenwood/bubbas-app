@@ -239,7 +239,7 @@ const ImprovedJournalPage = () => {
 
         {/* No entries state */}
         {!loading && entries.length === 0 ? (
-          <div> {/* Using a simple div as a placeholder for DashboardContainer */}
+          <div className="text-center py-8">
             <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">
                 You don't have any journal entries yet. Start chatting with Bubba to create some!
@@ -251,7 +251,7 @@ const ImprovedJournalPage = () => {
                 Start New Chat
               </Button>
             </div>
-          </DashboardContainer>
+          </div>
         ) : (
           <GridContainer className="grid-cols-1">
             {entries.map((entry) => (
