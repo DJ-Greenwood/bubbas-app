@@ -17,7 +17,6 @@ import SubscriptionDetailsCard from '../../components/cards/SubscriptionDetailsC
 import UsageStatsCard from '../../components/cards/UsageStatsCard';
 import EmotionalInsightsCard from './cards/EmotionalInsightsCard';
 import MemoryFeatureCard from './cards/MemoryFeatureCard';
-import TTSFeatureCard from './cards/TTSFeatureCard';
 import STTFeatureCard from './cards/STTFeatureCard';
 import ThemeSettingsCard from './cards/ThemeSettingsCard';
 import { useSubscription } from '@/utils/subscriptionService';
@@ -171,7 +170,6 @@ const UpdatedUserProfileService = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {userProfile.features.emotionalInsights && <EmotionalInsightsCard user={userProfile} />}
               {userProfile.features.memory && <MemoryFeatureCard user={userProfile} />}
-              {userProfile.features.tts && <TTSFeatureCard user={userProfile} onUpdate={handleProfileUpdate} />}
               {userProfile.features.stt && <STTFeatureCard user={userProfile} />}
               
               {/* Add feature availability based on subscription */}

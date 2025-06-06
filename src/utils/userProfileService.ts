@@ -64,7 +64,7 @@ export const updateUserProfile = async (updates: Partial<UserProfileData>): Prom
 /**
  * Create a new user profile in Firestore
  */
-export const createUserProfile = async (user: string, trimmedEmail: string, trimmedPassphrase: string): Promise<UserProfileData> => {
+export const createUserProfile = async (user: string, trimmedEmail: string, trimmedDecryptionKey: string): Promise<UserProfileData> => {
   if (!user) {
     throw new Error('User is not authenticated');
   }  
@@ -98,17 +98,13 @@ export const createUserProfile = async (user: string, trimmedEmail: string, trim
           username: '', // Empty string as default
           phoneNumber: '', // Empty string as default
           security: {
-            passPhrase: trimmedPassphrase,  
+            userauthority: 'user' // Default authority
           },
           timezone: 'UTC', // Default timezone
           localStorageEnabled: true, // Default to enabled
           emotionCharacterSet: 'Bubba', // Default character
           emotionIconSize: 32, // Default size
           theme: 'system', // Default theme
-          ttsVoice: '', // Empty by default
-          ttsRate: 1.0, // Default speech rate
-          ttsPitch: 1.0, // Default pitch
-          ttsAutoplay: false // Default to not auto-play
         },
         usage: {
           totalTokens: 0,
@@ -147,47 +143,6 @@ export const toggleFeature = async (featureName: keyof UserProfileData['features
     });
   } catch (error) {
     console.error(`Error toggling ${featureName} feature:`, error);
-    throw error;
-  }
-};
-
-/**
- * Update TTS preferences
- */
-export const updateTTSPreferences = async (
-  preferences: {
-    ttsVoice?: string;
-    ttsRate?: number;
-    ttsPitch?: number;
-    ttsAutoplay?: boolean;
-  }
-): Promise<void> => {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error('User is not authenticated');
-    }
-    
-    const userRef = doc(db, 'users', user.uid);
-    
-    // Create an update object with only the provided preferences
-    const updates: Record<string, any> = {};
-    
-    Object.entries(preferences).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updates[`preferences.${key}`] = value;
-      }
-    });
-    
-    // Add updated timestamp
-    updates.updatedAt = serverTimestamp();
-    
-    // Only update if there are changes
-    if (Object.keys(updates).length > 1) { // > 1 because we always have updatedAt
-      await updateDoc(userRef, updates);
-    }
-  } catch (error) {
-    console.error('Error updating TTS preferences:', error);
     throw error;
   }
 };

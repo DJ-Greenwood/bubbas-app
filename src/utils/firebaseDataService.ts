@@ -6,7 +6,7 @@ import {
   orderBy, increment, serverTimestamp, Timestamp, limit as firestoreLimit, 
   startAfter as firestoreStartAfter
 } from 'firebase/firestore';
-import { encryptField, decryptField, getPassPhrase } from './encryption';
+import { encryptField, decryptField, getDecryptionKey } from './encryption';
 import { JournalEntry } from '@/types/JournalEntry';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { EmotionCharacterKey } from '@/types/emotionCharacters';

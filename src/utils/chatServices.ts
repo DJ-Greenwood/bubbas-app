@@ -178,7 +178,7 @@ export const loadConversation = loadChats;
 export async function editChat(
   timestamp: string,
   newUserInput: string,
-  passPhrase: string,
+  decryptionKey: string,
   uid?: string
 ) {
   return editJournalEntry(timestamp, newUserInput, uid);
@@ -189,15 +189,15 @@ export const editConversation = async (
   timestamp: string,
   newUserInput: string,
   uid: string,
-  passPhrase: string
+  decryptionKey: string
 ) => {
-  return editChat(timestamp, newUserInput, passPhrase, uid);
+  return editChat(timestamp, newUserInput, decryptionKey, uid);
 };
 
 // ✅ Soft delete (move to trash)
 export async function softDeleteChat(
   timestamp: string,
-  passPhrase: string,
+  decryptionKey: string,
   uid?: string
 ) {
   return softDeleteJournalEntry(timestamp, uid);

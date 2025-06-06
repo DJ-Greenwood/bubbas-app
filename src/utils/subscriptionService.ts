@@ -14,7 +14,6 @@ export const SUBSCRIPTION_TIERS = {
       dailyLimit: 10,
       monthlyTokenLimit: 10000,
       sttMinutes: 5,
-      ttsMinutes: 5,
       maxJournalEntries: 50
     },
     features: [
@@ -32,7 +31,6 @@ export const SUBSCRIPTION_TIERS = {
       dailyLimit: 30,
       monthlyTokenLimit: 50000,
       sttMinutes: 30,
-      ttsMinutes: 30,
       maxJournalEntries: 500
     },
     features: [
@@ -51,7 +49,6 @@ export const SUBSCRIPTION_TIERS = {
       dailyLimit: 100,
       monthlyTokenLimit: 'Unlimited',
       sttMinutes: 120,
-      ttsMinutes: 120,
       maxJournalEntries: 'Unlimited'
     },
     features: [
@@ -77,7 +74,6 @@ export interface SubscriptionData {
     dailyLimit: number;
     monthlyTokenLimit: number | string;
     sttMinutes: number;
-    ttsMinutes: number;
     maxJournalEntries: number | string;
   };
   features: string[];
@@ -216,8 +212,6 @@ export const isFeatureAvailable = async (
         return tier.tier === 'pro';
       case 'emotional_insights':
         return tier.tier === 'pro';
-      case 'tts':
-        return true; // All tiers have some TTS, but different limits
       case 'stt':
         return true; // All tiers have some STT, but different limits
       default:

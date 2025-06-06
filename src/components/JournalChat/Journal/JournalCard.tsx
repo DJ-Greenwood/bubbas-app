@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '@/types/JournalEntry';
 import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { decryptField } from '@/utils/encryption'; // Import directly from encryption.ts
-import JournalTTSButton from './JournalTTSButton';
 import { useSubscription } from '@/utils/subscriptionService';
 
 
@@ -116,9 +115,6 @@ const JournalCard: React.FC<JournalCardProps> = ({
 
   const cardStatus = entry.status === 'trash' ? 'trashed' : 'active';
 
-  // TTS content
-  const ttsContent = `Your entry: ${decryptedUserText}. Bubba's response: ${decryptedBubbaReply}`;
-
   return (
     <div
       className={`bg-white rounded shadow-md p-4 space-y-4 ${
@@ -175,10 +171,6 @@ const JournalCard: React.FC<JournalCardProps> = ({
             <strong>Bubba:</strong> {decryptedBubbaReply}
           </p>
         </>
-      )}
-
-      {subscription.tier !== 'free' && (
-        <JournalTTSButton text={ttsContent} size="sm" />
       )}
 
       {entry.usage && (

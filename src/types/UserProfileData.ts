@@ -24,7 +24,6 @@ export interface UserProfileData {
     username?: string;
     phoneNumber?: string;
     security?:{
-      passPhrase?: string;
       userauthority?: 'user' | 'admin' | 'superadmin';
     }
     timezone?: string;

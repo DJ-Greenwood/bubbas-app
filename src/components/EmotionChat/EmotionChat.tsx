@@ -7,7 +7,7 @@ import EmotionIcon from '@/components/emotion/EmotionIcon';
 import { detectEmotion } from '@/components/emotion/EmotionDetector';
 import { Emotion } from '@/components/emotion/emotionAssets'; 
 import { setUserUID } from '@/utils/encryption';
-import { getPassPhrase } from '@/utils/encryption';
+import { getDecryptionKey } from '@/utils/encryption';
 import JournalCard from '@/components/JournalChat/Journal/JournalCard';
 import { resetConversation, askQuestion, startEmotionalSupportSession, saveChat } from "@/utils/chatServices";
 import * as chatService from '@/utils/chatServices';
@@ -20,7 +20,7 @@ const EmotionChat = () => {
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [passPhrase, setPassPhrase] = useState<string>("");
+  const [decryptionKey, setDecryptionKey] = useState<string>("");
   const [user, setUser] = useState<User | null>(null);
 
   // Initialize Bubbas in emotional support mode
@@ -47,33 +47,33 @@ const EmotionChat = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch passphrase
+  // Fetch decryption key
   useEffect(() => {
     const init = async () => {
       if (!user) return;
       
       try {
-        const phrase = await getPassPhrase();
-        if (phrase) {
-          setPassPhrase(phrase);
+        const key = await getDecryptionKey();
+        if (key) {
+          setDecryptionKey(key);
         }
       } catch (error) {
-        console.error("Failed to fetch passphrase:", error);
+        console.error("Failed to fetch decryption key:", error);
       }
     };
     
     init();
   }, [user]);
 
-  // Load journal entries when both user and passphrase are available
+  // Load journal entries when both user and decryption key are available
   useEffect(() => {
-    if (user && passPhrase) {
+    if (user && decryptionKey) {
       loadJournalEntries();
     }
-  }, [user, passPhrase]);
+  }, [user, decryptionKey]);
 
   const loadJournalEntries = async () => {
-    if (!user || !passPhrase) return;
+    if (!user || !decryptionKey) return;
     
     try {
       const loaded = await chatService.loadChats('active');
@@ -101,7 +101,7 @@ const EmotionChat = () => {
       setResponse(reply);
 
       // Save chat to database if user is authenticated
-      if (user && passPhrase) {
+      if (user && decryptionKey) {
         await saveChat(userInput, reply, detectedEmotionText, usage);
         // Reload journal entries to show the new entry
         await loadJournalEntries();

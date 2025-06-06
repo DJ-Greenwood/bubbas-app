@@ -11,7 +11,7 @@ export const setUserUID = (uid: string) => {
   console.log("Setting user UID:", uid.substring(0, 4) + "...");
 };
 
-// Generate a strong random encryption key (not based on passphrase)
+// Generate a strong random encryption key (not based on Decryption Key)
 export const generateEncryptionKey = (): string => {
   const array = new Uint8Array(32); // 256 bits
   crypto.getRandomValues(array);
@@ -38,7 +38,7 @@ export const generateRecoveryCode = (): string => {
 };
 
 // Setup encryption during signup
-export const setupEncryption = async (userPassphrase: string): Promise<{recoveryCode: string}> => {
+export const setupEncryption = async (userDecryptionKey: string): Promise<{recoveryCode: string}> => {
   const user = auth.currentUser;
   if (!user) {
     throw new Error("User UID not set! Please log in first.");
@@ -52,13 +52,13 @@ export const setupEncryption = async (userPassphrase: string): Promise<{recovery
   // Generate a recovery code
   const recoveryCode = generateRecoveryCode();
   
-  // Encrypt master key with passphrase
-  const passphraseKey = CryptoJS.PBKDF2(userPassphrase, userUID + appSalt, { 
+  // Encrypt master key with Decryption Key
+  const decryptionKey = CryptoJS.PBKDF2(userDecryptionKey, userUID + appSalt, { 
     keySize: 256/32, 
     iterations: 10000 
   }).toString();
   
-  const encryptedMasterKey = CryptoJS.AES.encrypt(encryptionKey, passphraseKey).toString();
+  const encryptedMasterKey = CryptoJS.AES.encrypt(encryptionKey, decryptionKey).toString();
   
   // Encrypt master key with recovery code
   const recoveryKey = CryptoJS.SHA256(recoveryCode + appSalt).toString();
@@ -124,17 +124,17 @@ export const getMasterKey = async (): Promise<string> => {
     console.error("Error getting key from cloud:", error);
   }
   
-  // If we can't get from cloud, try using passphrase as a fallback
+  // If we can't get from cloud, try using Decryption Key as a fallback
   try {
-    console.log("Trying to use passphrase as fallback for masterKey");
-    const passphrase = await getPassPhrase();
-    if (passphrase) {
-      console.log("Using passphrase as masterKey");
-      sessionStorage.setItem('masterKey', passphrase);
-      return passphrase;
+    console.log("Trying to use Decryption Key as fallback for masterKey");
+    const decryptionKey = await getDecryptionKey();
+    if (decryptionKey) {
+      console.log("Using Decryption Key as masterKey");
+      sessionStorage.setItem('masterKey', decryptionKey);
+      return decryptionKey;
     }
-  } catch (passphraseError) {
-    console.error("Error getting passphrase:", passphraseError);
+  } catch (decryptionKeyError) {
+    console.error("Error getting Decryption Key:", decryptionKeyError);
   }
   
   // Generate a deterministic key as last resort
@@ -169,9 +169,9 @@ const getKeyFromUserCloud = async (): Promise<string | null> => {
   return null;
 };
 
-// Get the user's passphrase from the database
-export const getPassPhrase = async (): Promise<string> => {
-  console.log("getPassPhrase called");
+// Get the user's Decryption Key from the database
+export const getDecryptionKey = async (): Promise<string> => {
+  console.log("getDecryptionKey called");
   const user = auth.currentUser;
   if (!user) {
     console.warn("No authenticated user found");
@@ -198,27 +198,27 @@ export const getPassPhrase = async (): Promise<string> => {
       // Try multiple possible paths
       const userData = userDocSnap.data();
       
-      // Check all possible paths for passphrase
-      const passPhrase = 
-        userData?.preferences?.security?.passPhrase || 
-        userData?.preferences?.security?.passphrase || 
-        userData?.passPhrase ||
-        userData?.passphrase;
+      // Check all possible paths for Decryption Key
+      const decryptionKey = 
+        userData?.preferences?.security?.decryptionKey || 
+        userData?.preferences?.security?.DecryptionKey || 
+        userData?.decryptionKey ||
+        userData?.DecryptionKey;
 
-      if (passPhrase) {
-        console.log("Found passphrase in user document");
-        return passPhrase;
+      if (decryptionKey) {
+        console.log("Found Decryption Key in user document");
+        return decryptionKey;
       }
     }
 
-    // Generate a deterministic passphrase as fallback
-    console.log("Generating deterministic passphrase");
+    // Generate a deterministic Decryption Key as fallback
+    console.log("Generating deterministic Decryption Key");
     return CryptoJS.SHA256(user.uid + appSalt).toString();
   } catch (error) {
-    console.error("Failed to fetch passPhrase:", error);
+    console.error("Failed to fetch Decryption Key:", error);
     
-    // Generate a deterministic passphrase as fallback
-    console.log("Generating deterministic passphrase after error");
+    // Generate a deterministic Decryption Key as fallback
+    console.log("Generating deterministic Decryption Key after error");
     return CryptoJS.SHA256(user.uid + appSalt).toString();
   }
 };
@@ -286,8 +286,8 @@ export const decryptField = async (cipherText: string): Promise<string> => {
 };
 
 
-// Recover with passphrase
-export const recoverWithPassphrase = async (passphrase: string): Promise<boolean> => {
+// Recover with Decryption Key
+export const recoverWithDecryptionKey = async (decryptionKey: string): Promise<boolean> => {
   try {
     const user = auth.currentUser;
     if (!user) {
@@ -296,8 +296,8 @@ export const recoverWithPassphrase = async (passphrase: string): Promise<boolean
 
     const userUID = user.uid;
 
-    // Derive the passphrase key
-    const passphraseKey = CryptoJS.PBKDF2(passphrase, userUID + appSalt, {
+    // Derive the Decryption Key
+    const derivedDecryptionKey = CryptoJS.PBKDF2(decryptionKey, userUID + appSalt, {
       keySize: 256 / 32,
       iterations: 10000,
     }).toString();
@@ -318,7 +318,7 @@ export const recoverWithPassphrase = async (passphrase: string): Promise<boolean
     }
 
     // Decrypt the master key
-    const bytes = CryptoJS.AES.decrypt(encryptedMasterKey, passphraseKey);
+    const bytes = CryptoJS.AES.decrypt(encryptedMasterKey, derivedDecryptionKey);
     const decryptedMasterKey = bytes.toString(CryptoJS.enc.Utf8);
 
     if (!decryptedMasterKey) {
@@ -331,7 +331,7 @@ export const recoverWithPassphrase = async (passphrase: string): Promise<boolean
     return true;
 
   } catch (error) {
-    console.error("Error during recovery with passphrase:", error);
+    console.error("Error during recovery with Decryption Key:", error);
     return false;
   }
 };

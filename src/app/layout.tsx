@@ -6,7 +6,7 @@ import '../../public/assets/css/globals.css';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { EmotionSettingsProvider } from '@/components/context/EmotionSettingsContext';
 import { Toaster } from '@/components/ui/toaster';
-import { TTSProvider } from '@/components/context/TTSContext';
+
 import Link from 'next/link';
 import UpdatedClientNav from '@/components/ClientNav/UpdatedClientNav';
 
@@ -35,20 +35,18 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <EmotionSettingsProvider>
-            <TTSProvider>
-              <header className="bg-white py-4">
-                <div className="container mx-auto px-4 flex items-center justify-between">
-                  <Link href="/" className="text-2xl font-bold text-gray-800">
-                    Bubbas.AI
-                  </Link>
-                  <nav>
-                    <UpdatedClientNav />
-                  </nav>
-                </div>
-              </header>
-              <main>{children}</main>
-              <Toaster />
-            </TTSProvider>
+            <header className="bg-white py-4">
+              <div className="container mx-auto px-4 flex items-center justify-between">
+                <Link href="/" className="text-2xl font-bold text-gray-800">
+                  Bubbas.AI
+                </Link>
+                <nav>
+                  <UpdatedClientNav />
+                </nav>
+              </div>
+            </header>
+            <main>{children}</main>
+            <Toaster />
           </EmotionSettingsProvider>
         </ThemeProvider>
       </body>

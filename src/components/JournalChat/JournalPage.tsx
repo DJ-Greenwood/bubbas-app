@@ -8,7 +8,6 @@ import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
-import { stopSpeaking } from '@/utils/tts';
 import { getJournalEntries, editJournalEntry, softDeleteJournalEntry } from '@/utils/firebaseDataService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -60,7 +59,6 @@ const UpdatedJournalPage = () => {
     return () => {
       debug('JournalPage', 'Cleaning up auth listener', undefined);
       unsubscribe();
-      stopSpeaking();
     };
   }, [router]);
 

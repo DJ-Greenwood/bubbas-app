@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/utils/firebaseClient';
 import { setUserUID } from '@/utils/encryption';
-import { stopSpeaking } from '@/utils/tts';
 import {
   getJournalEntries,
   editJournalEntry,
@@ -54,7 +53,6 @@ const ImprovedJournalPage = () => {
     });
     return () => {
       unsubscribe();
-      stopSpeaking();
     };
   }, [router]);
 

@@ -1,6 +1,6 @@
 // src/components/RecoveryModal.tsx
 import React, { useState } from 'react';
-import { recoverWithPassphrase, recoverWithCode } from '../utils/encryption';
+import { recoverWithDecryptionKey, recoverWithCode } from '../utils/encryption';
 
 interface RecoveryModalProps {
   isOpen: boolean;
@@ -8,10 +8,10 @@ interface RecoveryModalProps {
   onCancel: () => void;
 }
 
-const RecoveryModal: React.FC<RecoveryModalProps> = ({ 
-  isOpen, 
-  onSuccess, 
-  onCancel 
+const RecoveryModal: React.FC<RecoveryModalProps> = ({
+  isOpen,
+  onSuccess,
+  onCancel,
 }) => {
   const [method, setMethod] = useState<'encryptionKey' | 'recoveryKey'>('encryptionKey');
   const [input, setInput] = useState('');
@@ -25,20 +25,22 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
 
     try {
       let isValid = false;
-      
+
       if (method === 'encryptionKey') {
-        isValid = await recoverWithPassphrase(input);
+        isValid = await recoverWithDecryptionKey(input);
       } else {
         isValid = await recoverWithCode(input);
       }
-      
+
       if (isValid) {
         onSuccess();
       } else {
-        setError(`Invalid ${method === 'encryptionKey' ? 'encryption key' : 'recovery key'}. Please try again.`);
+        setError(
+          `Invalid ${method === 'encryptionKey' ? 'Decryption Key' : 'Recovery Key'}. Please try again.`
+        );
       }
     } catch (err) {
-      setError(`Error during recovery. Please try again.`);
+      setError('Error during recovery. Please try again.');
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -53,46 +55,46 @@ const RecoveryModal: React.FC<RecoveryModalProps> = ({
         <h2 className="text-xl font-bold mb-4">Recover Account Access</h2>
         <p className="mb-4 text-gray-600">
           Your data is protected with encryption. Please enter your
-          {method === 'encryptionKey' ? ' encryption key' : ' recovery key'} to access your data.
+          {method === 'encryptionKey' ? ' Decryption Key' : ' Recovery Key'} to access your data.
         </p>
-        
+
         <div className="flex space-x-2 mb-4">
           <button
             type="button"
             onClick={() => setMethod('encryptionKey')}
             className={`px-3 py-1 rounded ${
-              method === 'encryptionKey'
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700'
+              method === 'encryptionKey' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
             }`}
           >
-            Use Encryption Key
+            Use Decryption Key
           </button>
           <button
             type="button"
             onClick={() => setMethod('recoveryKey')}
             className={`px-3 py-1 rounded ${
-              method === 'recoveryKey'
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700'
+              method === 'recoveryKey' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
             }`}
           >
             Use Recovery Key
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit}>
           <input
             type={method === 'encryptionKey' ? 'password' : 'text'}
             className="w-full p-2 border rounded mb-4"
-            placeholder={method === 'encryptionKey' ? 'Enter your encryption key' : 'Enter your recovery key (e.g., APPLE-BANANA-CHERRY-1234)'}
+            placeholder={
+              method === 'encryptionKey'
+                ? 'Enter your Decryption Key'
+                : 'Enter your Recovery Key (e.g., APPLE-BANANA-CHERRY-1234)'
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             required
           />
-          
+
           {error && <p className="text-red-500 mb-4">{error}</p>}
-          
+
           <div className="flex justify-end space-x-3">
             <button
               type="button"

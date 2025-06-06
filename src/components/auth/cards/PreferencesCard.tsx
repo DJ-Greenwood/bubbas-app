@@ -5,7 +5,6 @@ import { useEmotionSettings } from "@/components/context/EmotionSettingsContext"
 import { EmotionCharacters, EmotionCharacterKey } from "@/types/emotionCharacters";
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import TTSToggle from '@/components/tts/TTSToggle';
 import { useSubscription } from '@/utils/subscriptionService';
 
 const PreferencesCard: React.FC<{ user: UserProfileData; onUpdate: (updates: Partial<UserProfileData>) => void }> = ({ user, onUpdate }) => {
@@ -19,25 +18,6 @@ const PreferencesCard: React.FC<{ user: UserProfileData; onUpdate: (updates: Par
       preferences: {
         ...user.preferences,
         localStorageEnabled: updatedPreference
-      }
-    });
-  };
-
-  const handleToggleTTSAutoplay = (enabled: boolean) => {
-    onUpdate({
-      preferences: {
-        ...user.preferences,
-        ttsAutoplay: enabled
-      }
-    });
-  };
-
-  const handleToggleTTSFeature = (enabled: boolean) => {
-    // This updates the feature flag itself
-    onUpdate({
-      features: {
-        ...user.features,
-        tts: enabled
       }
     });
   };
@@ -102,36 +82,6 @@ const PreferencesCard: React.FC<{ user: UserProfileData; onUpdate: (updates: Par
             onCheckedChange={handleToggleLocalStorage}
           />
           <Label htmlFor="local-storage">Save encrypted journal entries locally</Label>
-        </div>
-        
-        {/* TTS Feature Toggle (Plus/Pro only) */}
-        <div className="pt-2 border-t">
-          <h3 className="text-lg font-medium mb-3">Text-to-Speech Features</h3>
-          
-          <div className="space-y-4">
-            <TTSToggle 
-              enabled={user.features.tts ?? false}
-              onToggle={handleToggleTTSFeature}
-              label="Enable Text-to-Speech"
-            />
-            
-            {user.features.tts && subscription.tier !== 'free' && (
-              <div className="flex items-center space-x-2 ml-6">
-                <Switch
-                  id="tts-autoplay"
-                  checked={user.preferences.ttsAutoplay ?? false}
-                  onCheckedChange={handleToggleTTSAutoplay}
-                />
-                <Label htmlFor="tts-autoplay">Automatically read Bubba's responses</Label>
-              </div>
-            )}
-            
-            {subscription.tier === 'free' && (
-              <p className="text-sm text-gray-500 italic">
-                Text-to-Speech features are available in Plus and Pro plans.
-              </p>
-            )}
-          </div>
         </div>
       </div>
     </div>
